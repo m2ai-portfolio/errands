@@ -84,9 +84,7 @@ describe('evaluate', () => {
     const gate = createGate(policy)
     const first = gate.requestApproval(deposit(), t0)
     gate.commit(deposit(), t0, first.code)
-    expect(gate.evaluate(deposit({ amountCents: 1100 }), minutes(60)).reason).toBe(
-      'OVER_DAILY_CAP',
-    )
+    expect(gate.evaluate(deposit({ amountCents: 1100 }), minutes(60)).reason).toBe('OVER_DAILY_CAP')
     expect(gate.evaluate(deposit({ amountCents: 1000 }), minutes(60)).decision).toBe('confirm')
   })
 
