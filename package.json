@@ -1,0 +1,39 @@
+{
+  "name": "errands",
+  "version": "1.0.0",
+  "description": "Errands: a Strands Agents SDK concierge that runs real-world errands in the background and only surfaces for real decisions. Agents for Humans hackathon entry.",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "start": "tsx src/cli.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/m2ai-portfolio/errands.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/m2ai-portfolio/errands/issues"
+  },
+  "homepage": "https://github.com/m2ai-portfolio/errands#readme",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@strands-agents/sdk": "^1.17.0",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "eslint": "^10.10.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}
