@@ -64,7 +64,7 @@ export const StripeTransactionRowSchema = z.object({
   description: z.preprocess((v) => (v === null || v === undefined ? '' : v), z.coerce.string()),
   amount: z.number(),
   status: z.enum(['pending', 'posted', 'void']),
-  transacted_at: z.number(),
+  transacted_at: z.number().int().gt(0).lt(4102444800),
 })
 
 type FcTransaction = z.infer<typeof StripeTransactionRowSchema>

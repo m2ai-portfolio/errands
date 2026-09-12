@@ -22,7 +22,9 @@ const CADENCES: { name: Cadence; min: number; max: number }[] = [
 ]
 
 export function normalizeMerchant(description: unknown): string {
-  const cleaned = String(description ?? '')
+  const asText =
+    typeof description === 'string' || typeof description === 'number' ? description : ''
+  const cleaned = String(asText ?? '')
     .toUpperCase()
     .replace(/\b\d[\d\- ()]{6,}\d\b/g, ' ')
     .replace(/\.COM\b|\*|#|\d+/g, ' ')
@@ -54,6 +56,7 @@ export function findRecurring(transactions: readonly Transaction[], now: Date): 
     if (t.status !== 'posted' || t.amountCents <= 0 || Date.parse(t.postedAt) > now.getTime())
       continue
     const key = normalizeMerchant(t.description)
+    if (!key) continue
     groups.set(key, [...(groups.get(key) ?? []), t])
   }
   const out: RecurringCharge[] = []

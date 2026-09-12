@@ -65,14 +65,13 @@ const MAX_PROMPT_TEXT_LENGTH = 60
 // characters or a long injected instruction into an instruction-bearing
 // prompt.
 export function sanitizeForPrompt(text: string): string {
-  const printableOnly = Array.from(text)
-    .filter((ch) => {
-      const code = ch.codePointAt(0) ?? 0
-      // Strip C0/C1 control characters (includes \n, \r, \t) and keep
-      // everything else, including non-ASCII printable characters.
-      return !(code <= 0x1f || (code >= 0x7f && code <= 0x9f))
-    })
-    .join('')
+  // Strip C0/C1 control characters (includes \n, \r, \t, ESC) plus every
+  // Unicode format character, line/paragraph separator, zero-width space,
+  // joiner, and bidi override/isolate control (\p{Cc}\p{Cf}\p{Zl}\p{Zp}).
+  // A pure C0/C1 filter let zero-width and bidi controls through unchanged,
+  // letting an injected instruction survive byte-identical through this
+  // filter and the length cap.
+  const printableOnly = text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '')
   const collapsed = printableOnly.replace(/\s+/g, ' ').trim()
   return collapsed.slice(0, MAX_PROMPT_TEXT_LENGTH)
 }

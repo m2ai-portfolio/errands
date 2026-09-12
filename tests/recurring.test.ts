@@ -20,6 +20,11 @@ describe('normalizeMerchant', () => {
     expect(normalizeMerchant(null)).toBe('')
     expect(normalizeMerchant(undefined)).toBe('')
   })
+
+  it('coerces objects and arrays to an empty string rather than stringifying them', () => {
+    expect(normalizeMerchant({})).toBe('')
+    expect(normalizeMerchant([1, 2])).toBe('')
+  })
 })
 
 describe('findRecurring', () => {
@@ -70,5 +75,25 @@ describe('findRecurring', () => {
     const group = result.find((r) => r.merchant === 'Future Gym')
     expect(group?.count).toBe(3)
     expect(group?.lastChargedAt).toBe(new Date(base + 61 * 86_400_000).toISOString())
+  })
+  it('never produces a cancellable merchant from an empty or non-text description', () => {
+    const base = new Date('2026-03-01T00:00:00Z').getTime()
+    const emptyDescRows: Transaction[] = [0, 30, 61].map((d, i) => ({
+      id: `e${i}`,
+      description: '',
+      amountCents: 999,
+      postedAt: new Date(base + d * 86_400_000).toISOString(),
+      status: 'posted',
+    }))
+    expect(findRecurring(emptyDescRows, now)).toHaveLength(0)
+
+    const objectDescRows = [0, 30, 61].map((d, i) => ({
+      id: `o${i}`,
+      description: {} as unknown as string,
+      amountCents: 999,
+      postedAt: new Date(base + d * 86_400_000).toISOString(),
+      status: 'posted' as const,
+    }))
+    expect(findRecurring(objectDescRows, now)).toHaveLength(0)
   })
 })

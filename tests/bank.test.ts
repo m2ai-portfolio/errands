@@ -332,6 +332,58 @@ describe('StripeFinancialConnections', () => {
     expect(txns[0]!.id).toBe('txn_good')
   })
 
+  it('skips a row with an out-of-range transacted_at instead of throwing', async () => {
+    const fc = new StripeFinancialConnections({
+      secretKey: 'sk_test_abc',
+      customerId: 'cus_1',
+      collect: async () => ['fca_1'],
+      sleep: async () => {},
+      fetchFn: async (url) => {
+        const u = String(url)
+        if (u === `${FC_BASE}/accounts/fca_1/refresh`) {
+          return new Response(JSON.stringify({ id: 'fca_1' }))
+        }
+        if (u === `${FC_BASE}/accounts/fca_1`) {
+          return new Response(
+            JSON.stringify({
+              id: 'fca_1',
+              institution_name: 'Test Bank',
+              last4: '6789',
+              transaction_refresh: { status: 'succeeded' },
+            }),
+          )
+        }
+        if (u === `${FC_BASE}/transactions?account=fca_1&limit=100`) {
+          return new Response(
+            JSON.stringify({
+              data: [
+                {
+                  id: 'txn_huge',
+                  description: 'Huge Date Co',
+                  amount: 500,
+                  status: 'posted',
+                  transacted_at: 9e12,
+                },
+                {
+                  id: 'txn_good',
+                  description: 'Good Date Co',
+                  amount: 500,
+                  status: 'posted',
+                  transacted_at: 1735689600,
+                },
+              ],
+              has_more: false,
+            }),
+          )
+        }
+        throw new Error(`unexpected url ${u}`)
+      },
+    })
+    const txns = await fc.transactions('fca_1')
+    expect(txns).toHaveLength(1)
+    expect(txns[0]!.id).toBe('txn_good')
+  })
+
   it('throws FC_REFRESH_TIMEOUT after 120s of pending polling', async () => {
     let elapsedMs = 0
     const fc = new StripeFinancialConnections({
