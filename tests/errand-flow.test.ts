@@ -78,6 +78,7 @@ function harness(opts: { approve: boolean; policy?: Policy }) {
       ),
     },
     askHuman: async (p) => (prompts.push(p), opts.approve),
+    stepUp: async () => {},
     now: () => new Date('2026-09-12T23:00:00Z'),
     errandId: 'errand-test',
   })

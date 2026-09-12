@@ -1,13 +1,18 @@
 import type { BeforeToolCallEvent } from '@strands-agents/sdk'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createGate, type Policy, type SpendRequest } from '../src/gate.js'
-import { SpendingGateIntervention, type SpendInputMapper } from '../src/gate-intervention.js'
+import {
+  SpendingGateIntervention,
+  type AskHuman,
+  type SpendInputMapper,
+} from '../src/gate-intervention.js'
+import type { StepUpChannel } from '../src/stepup.js'
 
 const policy: Policy = {
   enabled: true,
-  perTransactionCapCents: 2000,
-  dailyCapCents: 2500,
-  weeklyCapCents: 4000,
+  perTransactionCapCents: 10000,
+  dailyCapCents: 20000,
+  weeklyCapCents: 40000,
   approvalTtlMinutes: 30,
   stepUpCents: 5000,
   promoteAfter: 3,
@@ -20,7 +25,7 @@ const policy: Policy = {
     phoneScreenRequired: true,
   },
   counterparties: {},
-  categories: { call: 'allow', restaurant_deposit: 'confirm', gift: 'forbid' },
+  categories: { call: 'allow', restaurant_deposit: 'confirm', gift: 'forbid', hire: 'confirm' },
 }
 const t0 = new Date('2026-09-12T18:00:00Z')
 
@@ -37,9 +42,15 @@ function eventFor(name: string, input: unknown): BeforeToolCallEvent {
   return { toolUse: { name, toolUseId: 'tool-1', input } } as unknown as BeforeToolCallEvent
 }
 
+const askYes: AskHuman = async () => true
+const askNever: AskHuman = async () => false
+const stepUpNever: StepUpChannel = async () => {}
+const event = eventFor
+
 function setup(answer: boolean, p: Policy = policy) {
   const gate = createGate(p)
   const prompts: string[] = []
+  const notes: string[] = []
   const intervention = new SpendingGateIntervention(
     gate,
     spendTools,
@@ -47,12 +58,15 @@ function setup(answer: boolean, p: Policy = policy) {
       prompts.push(prompt)
       return answer
     },
+    stepUpNever,
+    (l) => notes.push(l),
     () => t0,
   )
-  return { gate, prompts, intervention }
+  return { gate, prompts, notes, intervention }
 }
 
 const deposit = { merchant: 'Bella Cucina', amountCents: 1500, category: 'restaurant_deposit' }
+const depositEvent = (amountCents: number) => eventFor('pay_deposit', { ...deposit, amountCents })
 
 describe('SpendingGateIntervention', () => {
   it('fails closed if the intervention itself throws', () => {
@@ -124,5 +138,94 @@ describe('SpendingGateIntervention', () => {
       eventFor('pay_deposit', { ...deposit, category: 'call', amountCents: 0 }),
     )
     expect(action).toMatchObject({ type: 'deny', reason: 'Spending gate: KILL_SWITCH' })
+  })
+
+  it('lets a notify decision through with no code and tells the human afterwards', async () => {
+    // gate with proven agent in restaurant_deposit: pre-seed three clean events
+    const events = [0, 1, 2].map((i) => ({
+      counterpartyId: 'agent:restaurant_deposit',
+      kind: 'clean' as const,
+      detail: 'restaurant_deposit',
+      at: new Date(t0.getTime() - (3 - i) * 3600_000).toISOString(),
+    }))
+    const gate = createGate(policy, [], events)
+    const notes: string[] = []
+    const intervention = new SpendingGateIntervention(
+      gate,
+      spendTools,
+      askNever,
+      stepUpNever,
+      (l) => notes.push(l),
+      () => t0,
+    )
+    const action = await intervention.beforeToolCall(depositEvent(1500))
+    expect(action.type).toBe('transform')
+    expect(notes[0]).toMatch(/track record/i)
+  })
+
+  it('delivers the code out of band and requires the human to type it at or above stepUpCents', async () => {
+    const delivered: string[] = []
+    const stepUp = async (code: string) => {
+      delivered.push(code)
+    }
+    const ask = vi.fn(
+      async (_p: string, o?: { expectCode?: string }) => o?.expectCode === delivered[0],
+    )
+    const gate = createGate(policy)
+    const intervention = new SpendingGateIntervention(
+      gate,
+      spendTools,
+      ask,
+      stepUp,
+      () => {},
+      () => t0,
+    )
+    const action = await intervention.beforeToolCall(depositEvent(5000))
+    expect(delivered).toHaveLength(1)
+    expect(ask.mock.calls[0]?.[1]).toEqual({ expectCode: delivered[0] })
+    expect(action.type).toBe('transform')
+  })
+
+  it('does not deliver a code out of band below stepUpCents', async () => {
+    const delivered: string[] = []
+    const intervention = new SpendingGateIntervention(
+      createGate(policy),
+      spendTools,
+      askYes,
+      async (c) => {
+        delivered.push(c)
+      },
+      () => {},
+      () => t0,
+    )
+    await intervention.beforeToolCall(depositEvent(1500))
+    expect(delivered).toHaveLength(0)
+  })
+
+  it('includes the mapper evidence in the human prompt', async () => {
+    const prompts: string[] = []
+    const tools = new Map(spendTools)
+    tools.set('hire_tasker', () => ({
+      merchant: 'Maria R.',
+      amountCents: 3800,
+      category: 'hire',
+      counterpartyId: 'maria-r',
+      handover: true,
+      evidence: '4.9 stars, 212 jobs, background checked',
+    }))
+    const gate = createGate({ ...policy, counterparties: { 'maria-r': { rung: 'trusted' } } })
+    const intervention = new SpendingGateIntervention(
+      gate,
+      tools,
+      async (p) => {
+        prompts.push(p)
+        return true
+      },
+      stepUpNever,
+      () => {},
+      () => t0,
+    )
+    await intervention.beforeToolCall(event('hire_tasker', { taskerId: 'maria-r' }))
+    expect(prompts[0]).toContain('4.9 stars, 212 jobs')
   })
 })

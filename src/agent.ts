@@ -3,6 +3,7 @@ import { z } from 'zod'
 import type { ErrandsConfig } from './config.js'
 import { GateError, type Gate, type SpendRequest } from './gate.js'
 import { SpendingGateIntervention, type AskHuman } from './gate-intervention.js'
+import type { StepUpChannel } from './stepup.js'
 import type { DepositProcessor } from './tools/deposit.js'
 import {
   PhoneError,
@@ -30,6 +31,8 @@ export interface ErrandDeps {
   runCall: CallRunner
   deposits: DepositProcessor
   askHuman: AskHuman
+  stepUp: StepUpChannel
+  notify?: (line: string) => void
   now?: () => Date
   log?: (line: string) => void
   errandId?: string
@@ -241,7 +244,14 @@ export function createErrandTools(deps: ErrandDeps) {
     }),
   ]
 
-  const intervention = new SpendingGateIntervention(deps.gate, spendTools, deps.askHuman, now)
+  const intervention = new SpendingGateIntervention(
+    deps.gate,
+    spendTools,
+    deps.askHuman,
+    deps.stepUp,
+    deps.notify ?? log,
+    now,
+  )
   return { tools, handlers, spendTools, intervention }
 }
 

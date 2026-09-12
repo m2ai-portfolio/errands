@@ -4,6 +4,7 @@ import { createErrandsAgent } from './agent.js'
 import { createAsk } from './ask.js'
 import { loadConfig } from './config.js'
 import { createGate } from './gate.js'
+import { consoleStepUp, telegramStepUp } from './stepup.js'
 import { StripeTestDeposits } from './tools/deposit.js'
 import {
   buildReservationAssistant,
@@ -46,6 +47,11 @@ async function main() {
     ? (JSON.parse(process.env.ERRANDS_CALLER_VOICE) as VoiceConfig)
     : DEFAULT_CALLER_VOICE
 
+  const stepUp =
+    config.stepUpChannel === 'telegram'
+      ? telegramStepUp(process.env.TELEGRAM_BOT_TOKEN ?? '', process.env.TELEGRAM_CHAT_ID ?? '')
+      : consoleStepUp((l) => process.stderr.write(l + '\n'))
+
   const agent = createErrandsAgent(
     {
       config,
@@ -60,6 +66,7 @@ async function main() {
           assistant: buildReservationAssistant(reservation, voice),
         }),
       askHuman: createAsk(stdin, stdout),
+      stepUp,
       log,
     },
     config.bedrock,

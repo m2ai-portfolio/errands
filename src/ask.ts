@@ -2,9 +2,11 @@ import { createInterface } from 'node:readline/promises'
 import type { Readable, Writable } from 'node:stream'
 import type { AskHuman } from './gate-intervention.js'
 
-// The human decision surface. Interactive: a y/N question on the terminal.
-// Non-interactive (judges' test runs, CI): ERRANDS_APPROVE=yes|no answers
-// every question without a terminal. Anything else means "no".
+// The human decision surface. Interactive: a y/N question on the terminal, or
+// (when a step-up code is required) a prompt that only accepts the code that
+// was delivered on the second channel. Non-interactive (judges' test runs,
+// CI): ERRANDS_APPROVE=yes|no answers every question without a terminal.
+// Anything else means "no".
 
 export function createAsk(
   input: Readable & { isTTY?: boolean },
@@ -12,11 +14,16 @@ export function createAsk(
   env: NodeJS.ProcessEnv = process.env,
 ): AskHuman {
   const preset = env.ERRANDS_APPROVE?.trim().toLowerCase()
-  return async (prompt) => {
-    output.write(`\n>>> DECISION NEEDED: ${prompt} [y/N] `)
+  return async (prompt, options) => {
+    const expectCode = options?.expectCode
+    output.write(
+      expectCode
+        ? `\n>>> DECISION NEEDED: ${prompt}\n    A code was sent on your second channel. Type it to approve, or press Enter to decline: `
+        : `\n>>> DECISION NEEDED: ${prompt} [y/N] `,
+    )
     if (preset !== undefined) {
       const approved = preset === 'yes' || preset === 'y'
-      output.write(`${approved ? 'y' : 'n'}  (ERRANDS_APPROVE)\n`)
+      output.write(`${approved ? (expectCode ?? 'y') : 'n'}  (ERRANDS_APPROVE)\n`)
       return approved
     }
     // The reader is created per question so buffered piped input is not
@@ -27,7 +34,8 @@ export function createAsk(
         rl.once('line', (l) => resolve(l))
         rl.once('close', () => resolve(null))
       })
-      return line !== null && /^y(es)?$/i.test(line.trim())
+      if (line === null) return false
+      return expectCode ? line.trim() === expectCode : /^y(es)?$/i.test(line.trim())
     } finally {
       rl.close()
     }
