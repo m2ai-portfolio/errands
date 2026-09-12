@@ -1,0 +1,62 @@
+[
+  {
+    "id": "maria-r",
+    "name": "Maria R.",
+    "rating": 4.9,
+    "jobs": 212,
+    "backgroundCheck": true,
+    "insuredFor": ["vehicle", "home"],
+    "yearsActive": 4,
+    "rateCents": 3800,
+    "phone": "+16155550110",
+    "taskClasses": ["vehicle", "errand"]
+  },
+  {
+    "id": "dev-k",
+    "name": "Dev K.",
+    "rating": 4.8,
+    "jobs": 340,
+    "backgroundCheck": true,
+    "insuredFor": ["home"],
+    "yearsActive": 6,
+    "rateCents": 3500,
+    "phone": "+16155550111",
+    "taskClasses": ["vehicle", "errand"]
+  },
+  {
+    "id": "jules-t",
+    "name": "Jules T.",
+    "rating": 4.6,
+    "jobs": 80,
+    "backgroundCheck": true,
+    "insuredFor": ["vehicle"],
+    "yearsActive": 2,
+    "rateCents": 3000,
+    "phone": "+16155550112",
+    "taskClasses": ["vehicle", "errand"]
+  },
+  {
+    "id": "sam-o",
+    "name": "Sam O.",
+    "rating": 5.0,
+    "jobs": 12,
+    "backgroundCheck": false,
+    "insuredFor": ["vehicle"],
+    "yearsActive": 1,
+    "rateCents": 2800,
+    "phone": "+16155550113",
+    "taskClasses": ["vehicle", "errand"]
+  },
+  {
+    "id": "lena-p",
+    "name": "Lena P.",
+    "rating": 4.9,
+    "jobs": 150,
+    "backgroundCheck": true,
+    "insuredFor": ["vehicle"],
+    "yearsActive": 3,
+    "rateCents": 4200,
+    "phone": "+16155550114",
+    "taskClasses": ["vehicle", "errand"]
+  }
+]
