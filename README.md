@@ -58,14 +58,14 @@ Judges can run this, so everything public runs sandboxed:
 
 ## Run it
 
-Requirements: Node.js 22+, an AWS account with Bedrock access to Claude Sonnet 4.6, a Vapi account with an outbound number and two demo lines, a Stripe test key, and optionally a Google Maps key with Places API (New).
+Requirements: Node.js 22+, an AWS account with Bedrock access to Claude Sonnet 4.6 (a Bedrock API key or an IAM key pair), a Vapi account with an outbound number and two demo lines, a Stripe test key, and optionally a Google Maps key with Places API (New).
 
 ```bash
 git clone https://github.com/m2ai-portfolio/errands && cd errands
 npm install
 npm test                                   # 51 offline tests, no keys needed
 
-export AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...
+export AWS_REGION=us-east-1 AWS_BEARER_TOKEN_BEDROCK=...   # a Bedrock API key; an IAM key pair works too
 export VAPI_API_KEY=... STRIPE_SECRET_KEY=sk_test_...
 export GOOGLE_API_KEY=...                  # optional; without it search uses fixtures/
 mkdir -p ~/.config/errands && cp demo.example.json ~/.config/errands/demo.json   # then fill in your Vapi ids
