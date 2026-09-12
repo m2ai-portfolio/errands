@@ -66,6 +66,11 @@ web_modules/
 .yarn-integrity
 
 # dotenv environment variable files
+demo.json
+*.pem
+*.key
+*.p12
+*.pfx
 .env
 .env.*
 !.env.example

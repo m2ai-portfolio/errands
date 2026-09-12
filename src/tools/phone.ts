@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 // Outbound phone calls through Vapi. The Strands agent decides WHEN to call;
 // this module decides WHERE a call may go. In demo mode every call is routed to
-// test lines Matthew controls, so a real business is never dialed. In live mode
+// test lines we control, so a real business is never dialed. In live mode
 // only numbers on an explicit allowlist can be called.
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>
