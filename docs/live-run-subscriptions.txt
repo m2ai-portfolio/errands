@@ -1,7 +1,7 @@
 Errands (demo mode, search: fixture)
 Request: Find everything I'm paying for monthly and cancel Netflix.
 
-I'll start by connecting your bank account to pull up all your recurring charges. One moment!
+I'll start by connecting your bank account to scan for recurring charges. One moment!
   ⏳ connect_bank
 
 🔧 Tool #1: connect_bank
@@ -17,19 +17,20 @@ Got it! Now let me pull up all your recurring charges.
   · Clouddrive Plus: $9.99 monthly
   · Coffee Club: $6.00 weekly
 ✓ Tool completed
-Here's everything on your account. Now let me cancel Netflix right away!
+Here's everything I found on your account:
 
-**Your recurring charges:**
-| Merchant | Amount | Cadence |
-|---|---|---|
-| Planet Fitness | $24.99 | Monthly |
-| Netflix | $15.49 | Monthly |
-| Spotify | $11.99 | Monthly |
-| Clouddrive Plus | $9.99 | Monthly |
-| Coffee Club | $6.00 | Weekly |
+| # | Merchant | Amount | Cadence |
+|---|----------|--------|---------|
+| 1 | Planet Fitness | $24.99 | Monthly |
+| 2 | Netflix | $15.49 | Monthly |
+| 3 | Spotify | $11.99 | Monthly |
+| 4 | Clouddrive Plus | $9.99 | Monthly |
+| 5 | Coffee Club | $6.00 | Weekly |
+
+Since you asked to cancel Netflix, I'm on it right now!
   ⏳ cancel_subscription
 
->>> DECISION NEEDED: Errands wants to spend $0.00 (cancellation) at Netflix. $15.49 monthly, last charged 2026-08-16. Approve? [y/N] << rehearse: y
+>>> DECISION NEEDED: Errands wants to cancel your Netflix subscription. $15.49 monthly, last charged 2026-08-16. Approve? [y/N] << rehearse: y
 
 🔧 Tool #3: cancel_subscription
   · calling Netflix to cancel (call 1, demo switchboard)
@@ -37,16 +38,18 @@ Here's everything on your account. Now let me cancel Netflix right away!
 ✓ Tool completed
 All done! Here's a summary:
 
-**Cancelled:**
-- ✅ **Netflix** — $15.49/month | Confirmation: **CX-4471** | Effective: end of current billing period
+**Cancelled: Netflix**
+- 💸 Saves you **$15.49/month**
+- ✅ Confirmation: **cx-4471**
+- 📅 Effective: **End of your current billing period**
 
-**Still active subscriptions:**
+**Your remaining subscriptions:**
 | Merchant | Amount | Cadence |
-|---|---|---|
+|----------|--------|---------|
 | Planet Fitness | $24.99 | Monthly |
 | Spotify | $11.99 | Monthly |
 | Clouddrive Plus | $9.99 | Monthly |
 | Coffee Club | $6.00 | Weekly |
 
-To undo the Netflix cancellation, you'll need to log back into Netflix and reactivate your plan before the current billing period ends. Let me know if you'd like to cancel anything else!
+To undo the Netflix cancellation, you'd need to log back into Netflix and reactivate your account before the billing period ends. Let me know if you'd like to cancel anything else!
 
