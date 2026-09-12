@@ -193,7 +193,7 @@ Requirements: Node.js 22+, an AWS account with Bedrock access to Claude Sonnet 4
 ```bash
 git clone https://github.com/m2ai-portfolio/errands && cd errands
 npm install
-npm test                                   # 214 offline tests in 19 files, no keys needed
+npm test                                   # 216 offline tests in 19 files, no keys needed
 ```
 
 | Variable                   | What it does                                                                                                             |
@@ -266,7 +266,7 @@ This repository was created and written during the hackathon Submission Period (
 | `policy.json`                  | The spending and vetting rules, checked in                                |
 | `fixtures/`                    | Restaurants, shops, taskers, bank transactions                            |
 | `scripts/offline-run.ts`       | Scripted end-to-end run for anyone without Vapi or Stripe keys            |
-| `tests/`                       | 214 offline tests across 19 files                                         |
+| `tests/`                       | 216 offline tests across 19 files                                         |
 
 ## License
 
