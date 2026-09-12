@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { stdin, stdout } from 'node:process'
-import { createInterface } from 'node:readline/promises'
 import { createErrandsAgent } from './agent.js'
+import { createAsk } from './ask.js'
 import { loadConfig } from './config.js'
 import { createGate } from './gate.js'
 import { StripeTestDeposits } from './tools/deposit.js'
@@ -31,7 +31,6 @@ const DEFAULT_CALLER_VOICE: VoiceConfig = {
 async function main() {
   const config = loadConfig()
   const request = process.argv.slice(2).join(' ').trim() || DEFAULT_REQUEST
-  const rl = createInterface({ input: stdin, output: stdout })
   const log = (line: string) => stdout.write(`  · ${line}\n`)
 
   const fixtures = JSON.parse(
@@ -60,19 +59,16 @@ async function main() {
           to,
           assistant: buildReservationAssistant(reservation, voice),
         }),
-      askHuman: async (prompt) => {
-        const answer = await rl.question(`\n>>> DECISION NEEDED: ${prompt} [y/N] `)
-        return /^y(es)?$/i.test(answer.trim())
-      },
+      askHuman: createAsk(stdin, stdout),
       log,
     },
     config.bedrock,
   )
 
   stdout.write(`Errands (${config.mode} mode, search: ${search.source})\nRequest: ${request}\n\n`)
-  const result = await agent.invoke(request)
-  stdout.write(`\n${String(result)}\n`)
-  rl.close()
+  // The SDK's default printer streams the agent's text and tool markers to stdout.
+  await agent.invoke(request)
+  stdout.write('\n')
 }
 
 main().catch((error: unknown) => {
