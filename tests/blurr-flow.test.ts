@@ -114,7 +114,7 @@ function harness(opts: { approve?: boolean; outcomes?: unknown[] } = {}) {
     return errand.handlers.hire(finalInput)
   }
 
-  return { use, dialed, charges, prompts, stepUps, gate }
+  return { use, dialed, charges, prompts, stepUps, gate, handlers: errand.handlers }
 }
 
 const booking = { vehicle: '2016 Honda Civic', service: 'oil change', window: 'this week' }
@@ -166,6 +166,11 @@ describe('blurr errand: oil change plus a hired driver', () => {
     const devK = await h.use('vet_tasker', { taskerId: 'dev-k', slot: 'Tuesday 8:00 AM' })
     expect(devK).toEqual({ passed: false, failures: ['NOT_INSURED_FOR_vehicle'] })
     expect(h.dialed).toHaveLength(1)
+    // A tasker who failed vetting on paper was never screened, so hiring them
+    // is refused by the mapper before any human is asked.
+    expect(await h.use('hire_tasker', { taskerId: 'dev-k' })).toEqual({
+      denied: 'Spending gate: SPEND_INPUT_INVALID',
+    })
 
     const maria = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
     expect(maria).toMatchObject({ passed: true, failures: [] })
@@ -272,5 +277,64 @@ describe('blurr errand: oil change plus a hired driver', () => {
       denied: 'Spending gate: SPEND_INPUT_INVALID',
     })
     expect(h.gate.rungFor(HIRE_REQUEST)).toBe('unknown')
+  })
+
+  it('records a screen at most once per tasker, even after passing twice', async () => {
+    const h = harness({ outcomes: [SCREEN, SCREEN] })
+    await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    const screenedEvents = h.gate
+      .events()
+      .filter((e) => e.detail === 'screened' && e.counterpartyId === 'maria-r')
+    expect(screenedEvents).toHaveLength(1)
+  })
+
+  it('refuses a second payment for a shop already paid', async () => {
+    const h = harness()
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    const paid = await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 8900 })
+    expect(paid).toMatchObject({ status: 'paid', amountCents: 8900 })
+
+    // The mapper denies a second payment for the same shop before any human
+    // is asked again, so the ledger and Stripe cannot disagree.
+    expect(await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 8900 })).toEqual({
+      denied: 'Spending gate: SPEND_INPUT_INVALID',
+    })
+    // Defense in depth: the handler itself refuses if ever reached directly.
+    expect(await h.handlers.pay({ shopId: 'nashville-lube', amountCents: 8900 })).toEqual({
+      status: 'refused',
+      reason: 'ALREADY_PAID',
+    })
+    const bookings = h.gate.ledger().filter((e) => e.category === 'service_booking')
+    expect(bookings).toHaveLength(1)
+  })
+
+  it('a later failed screen invalidates an earlier passed one', async () => {
+    const h = harness({
+      outcomes: [
+        SCREEN,
+        { available: true, answers: { manual: false, insurance: true, slot: true } },
+      ],
+    })
+    const first = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    expect(first).toMatchObject({ passed: true })
+    const second = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    expect(second).toMatchObject({ passed: false, failures: ['SCREEN_ANSWER_manual'] })
+
+    expect(await h.use('hire_tasker', { taskerId: 'maria-r' })).toEqual({
+      denied: 'Spending gate: SPEND_INPUT_INVALID',
+    })
+  })
+
+  it('a later not-booked call invalidates an earlier stored quote', async () => {
+    const h = harness({ outcomes: [SERVICE, { booked: false, notes: 'No longer available.' }] })
+    const first = await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    expect(first).toMatchObject({ booked: true, quoteCents: 8900 })
+    const second = await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    expect(second).toMatchObject({ booked: false })
+
+    expect(await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 8900 })).toEqual({
+      denied: 'Spending gate: SPEND_INPUT_INVALID',
+    })
   })
 })

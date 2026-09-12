@@ -83,6 +83,7 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
   const errandId = deps.errandId ?? `errand-${Date.now()}`
   const bookings = new Map<string, { quoteCents: number; slot: string | null }>()
   const screens = new Map<string, { slot: string }>()
+  const paidShops = new Set<string>()
   let callsMade = 0
 
   const policy: DestinationPolicy =
@@ -169,6 +170,9 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
       const outcome = parseOutcome(ServiceOutcomeSchema, result.structuredData)
       if (outcome?.booked)
         bookings.set(shop.id, { quoteCents: outcome.quoteCents, slot: outcome.slot })
+      // A later not-booked (or unclear) call invalidates an earlier stored
+      // quote: nobody stays payable off a booking that no longer stands.
+      else bookings.delete(shop.id)
       log(
         `${shop.name}: ${outcome ? (outcome.booked ? `booked ${outcome.slot ?? ''}` : 'not booked') : 'no clear outcome'}`,
       )
@@ -186,6 +190,9 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
 
     async pay(input: z.infer<typeof PayInput>): Promise<Json> {
       const shop = lookupShop(input.shopId)
+      // The mapper already refuses a second payment for the same shop before a
+      // human is asked; this is defense-in-depth for a direct handler call.
+      if (paidShops.has(shop.id)) return { status: 'refused', reason: 'ALREADY_PAID' }
       const request: SpendRequest = {
         merchant: shop.name,
         amountCents: input.amountCents,
@@ -201,6 +208,7 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
         description: `Errands service: ${shop.name}`,
         idempotencyKey: `${errandId}-${shop.id}-service`,
       })
+      paidShops.add(shop.id)
       log(`service payment ${receipt.status}: ${shop.name}`)
       return {
         status: 'paid',
@@ -233,6 +241,9 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
       const paper = vet(profile, deps.vetting, TASK_CLASS)
       if (!paper.passed) {
         log(`${profile.name} failed vetting: ${paper.failures.join(', ')}`)
+        // A later paper failure invalidates an earlier passed screen: nobody
+        // stays hireable off a stale pass once they fail vetting again.
+        screens.delete(profile.id)
         return { passed: false, failures: paper.failures }
       }
       if (callsMade >= MAX_CALLS_PER_ERRAND)
@@ -276,9 +287,14 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
       if (passed) {
         // The screen is what lifts a stranger off the "unknown" rung. Only a
         // passed screen is stored, so hire_tasker has nothing to work with
-        // for anyone else.
-        deps.gate.recordScreened(profile.id, now())
+        // for anyone else. Record the screen event at most once per tasker:
+        // repeating it would manufacture a track record just by re-dialing
+        // someone who already passed.
+        if (!screens.has(profile.id)) deps.gate.recordScreened(profile.id, now())
         screens.set(profile.id, { slot: input.slot })
+      } else {
+        // A later failed screen invalidates any earlier passed one.
+        screens.delete(profile.id)
       }
       log(`${profile.name} screen: ${passed ? 'passed' : failures.join(', ')}`)
       return {
@@ -341,6 +357,7 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
       (input) => {
         const { shopId, amountCents } = input as { shopId?: unknown; amountCents?: unknown }
         const shop = lookupShop(shopId)
+        if (paidShops.has(shop.id)) throw new Error('ALREADY_PAID')
         const booking = bookings.get(shop.id)
         if (!booking || booking.quoteCents <= 0) throw new Error('NO_QUOTE')
         if (amountCents !== booking.quoteCents) throw new Error('AMOUNT_NOT_QUOTED')
