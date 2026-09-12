@@ -97,7 +97,7 @@ The ledger gains a `trustEvents` table: `{ counterpartyId, kind: 'clean' | 'inci
     "cancellation": "confirm",
     "gift": "forbid"
   },
-  "notifyCapCents": { "restaurant_deposit": 2500, "service_booking": 5000 },
+  "notifyCapCents": { "restaurant_deposit": 2500, "service_booking": 4500 },
   "vetting": { "...": "as above" },
   "counterparties": {
     "maria-r": { "rung": "trusted", "note": "picked up Blurr twice" }
@@ -105,7 +105,7 @@ The ledger gains a `trustEvents` table: `{ counterpartyId, kind: 'clean' | 'inci
 }
 ```
 
-Caps rise from the current $20 because the demo spends up to $38 (Tasker) and a $50+ step-up must be reachable.
+Every notify cap must be below `stepUpCents`; the config loader rejects a policy where it is not. Caps rise from the current $20 because the demo spends up to $38 (Tasker) and a $50+ step-up must be reachable.
 
 ### Files
 

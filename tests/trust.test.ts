@@ -69,6 +69,17 @@ describe('rungOf', () => {
     const threeClean = [screened, ev('clean', 1), ev('clean', 2), ev('clean', 3)]
     expect(rungOf('maria-r', {}, threeClean, 3, 'unknown')).toBe('proven')
   })
+  it('repeated screened events never promote on their own', () => {
+    const screened = (n: number): TrustEvent => ({
+      counterpartyId: 'maria-r',
+      kind: 'clean',
+      detail: 'screened',
+      at: ev('clean', n).at,
+    })
+    expect(
+      rungOf('maria-r', {}, [screened(1), screened(2), screened(3), screened(4)], 3, 'unknown'),
+    ).toBe('screened')
+  })
 })
 
 const policy = {

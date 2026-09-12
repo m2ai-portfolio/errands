@@ -67,8 +67,10 @@ export function rungOf(
       clean = 0
       continue
     }
-    if (rung === 'unknown' && event.detail === 'screened') {
-      rung = 'screened'
+    if (event.detail === 'screened') {
+      if (rung === 'unknown') {
+        rung = 'screened'
+      }
       continue
     }
     clean += 1
