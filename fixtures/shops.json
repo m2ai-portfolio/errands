@@ -1,0 +1,16 @@
+[
+  {
+    "id": "nashville-lube",
+    "name": "Nashville Lube and Tire",
+    "address": "300 Demo Blvd, Nashville, TN",
+    "phone": "+16155550120",
+    "services": ["oil change", "tire rotation", "brake inspection"]
+  },
+  {
+    "id": "music-city-auto",
+    "name": "Music City Auto Care",
+    "address": "410 Demo Row, Nashville, TN",
+    "phone": "+16155550121",
+    "services": ["oil change", "state inspection", "battery replacement"]
+  }
+]
