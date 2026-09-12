@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "perTransactionCapCents": 2000,
+  "dailyCapCents": 2500,
+  "weeklyCapCents": 4000,
+  "approvalTtlMinutes": 30,
+  "categories": {
+    "call": "allow",
+    "restaurant_deposit": "confirm",
+    "gift": "forbid"
+  }
+}

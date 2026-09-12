@@ -1,0 +1,15 @@
+{
+  "outboundPhoneNumberId": "<Vapi phone number id that places the calls>",
+  "lines": [
+    {
+      "role": "full",
+      "phoneNumberId": "<Vapi phone number id of the demo line that says it is fully booked>",
+      "number": "+15025550100"
+    },
+    {
+      "role": "open",
+      "phoneNumberId": "<Vapi phone number id of the demo line that takes the booking>",
+      "number": "+15025550101"
+    }
+  ]
+}

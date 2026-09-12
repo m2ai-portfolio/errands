@@ -1,0 +1,29 @@
+[
+  {
+    "id": "fixture-bella-cucina",
+    "name": "Bella Cucina",
+    "address": "100 Demo St, Nashville, TN",
+    "phone": "(615) 555-0101",
+    "rating": 4.7,
+    "priceLevel": "PRICE_LEVEL_MODERATE",
+    "cuisine": "italian_restaurant"
+  },
+  {
+    "id": "fixture-trattoria-roma",
+    "name": "Trattoria Roma",
+    "address": "200 Demo Ave, Nashville, TN",
+    "phone": "(615) 555-0102",
+    "rating": 4.5,
+    "priceLevel": "PRICE_LEVEL_MODERATE",
+    "cuisine": "italian_restaurant"
+  },
+  {
+    "id": "fixture-taco-town",
+    "name": "Taco Town",
+    "address": "300 Demo Blvd, Nashville, TN",
+    "phone": "(615) 555-0103",
+    "rating": 4.9,
+    "priceLevel": "PRICE_LEVEL_INEXPENSIVE",
+    "cuisine": "mexican_restaurant"
+  }
+]

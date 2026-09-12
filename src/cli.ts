@@ -1,0 +1,81 @@
+import { readFileSync } from 'node:fs'
+import { stdin, stdout } from 'node:process'
+import { createInterface } from 'node:readline/promises'
+import { createErrandsAgent } from './agent.js'
+import { loadConfig } from './config.js'
+import { createGate } from './gate.js'
+import { StripeTestDeposits } from './tools/deposit.js'
+import {
+  buildReservationAssistant,
+  placeCall,
+  VapiClient,
+  type VoiceConfig,
+} from './tools/phone.js'
+import {
+  FixtureRestaurantSearch,
+  GooglePlacesRestaurantSearch,
+  type Restaurant,
+} from './tools/restaurants.js'
+
+// Usage: npm start -- "Dinner for 2 tonight at 7 at Bella Cucina in Nashville, or somewhere comparable"
+
+const DEFAULT_REQUEST =
+  'Book dinner for 2 tonight at 7 PM at Bella Cucina in Nashville. If they are full, find somewhere comparable between 6:30 and 8:00 PM.'
+
+const DEFAULT_CALLER_VOICE: VoiceConfig = {
+  provider: 'cartesia',
+  model: 'sonic-3.5',
+  voiceId: 'a167e0f3-df7e-4d52-a9c3-f949145efdab',
+}
+
+async function main() {
+  const config = loadConfig()
+  const request = process.argv.slice(2).join(' ').trim() || DEFAULT_REQUEST
+  const rl = createInterface({ input: stdin, output: stdout })
+  const log = (line: string) => stdout.write(`  · ${line}\n`)
+
+  const fixtures = JSON.parse(
+    readFileSync(new URL('../fixtures/restaurants.json', import.meta.url), 'utf8'),
+  ) as Restaurant[]
+  const search =
+    config.searchSource === 'google-places' && config.googleApiKey
+      ? new GooglePlacesRestaurantSearch(config.googleApiKey)
+      : new FixtureRestaurantSearch(fixtures)
+
+  const vapi = new VapiClient(config.vapiApiKey)
+  const voice: VoiceConfig = process.env.ERRANDS_CALLER_VOICE
+    ? (JSON.parse(process.env.ERRANDS_CALLER_VOICE) as VoiceConfig)
+    : DEFAULT_CALLER_VOICE
+
+  const agent = createErrandsAgent(
+    {
+      config,
+      gate: createGate(config.policy),
+      search,
+      deposits: new StripeTestDeposits(process.env.STRIPE_SECRET_KEY ?? ''),
+      runCall: ({ to, request: reservation }) =>
+        placeCall({
+          client: vapi,
+          phoneNumberId: config.outboundPhoneNumberId,
+          to,
+          assistant: buildReservationAssistant(reservation, voice),
+        }),
+      askHuman: async (prompt) => {
+        const answer = await rl.question(`\n>>> DECISION NEEDED: ${prompt} [y/N] `)
+        return /^y(es)?$/i.test(answer.trim())
+      },
+      log,
+    },
+    config.bedrock,
+  )
+
+  stdout.write(`Errands (${config.mode} mode, search: ${search.source})\nRequest: ${request}\n\n`)
+  const result = await agent.invoke(request)
+  stdout.write(`\n${String(result)}\n`)
+  rl.close()
+}
+
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : error)
+  process.exit(1)
+})
