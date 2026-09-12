@@ -114,6 +114,27 @@ describe('placeCall', () => {
     expect(requests).toHaveLength(4)
   })
 
+  it('accepts the real Vapi shape, which omits fields that have no value', async () => {
+    // Recorded from live call 01a092eb on 2026-09-11 against the demo "full" line.
+    const notes =
+      'The restaurant is fully booked tonight and could not accommodate the reservation.'
+    const { client } = fakeVapi(['ended'], { notes, booked: false, depositRequiredCents: 0 })
+    const result = await placeCall({
+      client,
+      phoneNumberId: 'pn-1',
+      to: '+1',
+      assistant: {},
+      sleep: noSleep,
+    })
+    expect(result.outcome).toEqual({
+      booked: false,
+      confirmedTime: null,
+      confirmationCode: null,
+      depositRequiredCents: 0,
+      notes,
+    })
+  })
+
   it('returns a null outcome when the call analysis is malformed', async () => {
     const { client } = fakeVapi(['ended'], { booked: 'maybe' })
     const result = await placeCall({

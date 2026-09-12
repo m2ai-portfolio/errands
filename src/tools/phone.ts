@@ -53,12 +53,29 @@ export interface ReservationRequest {
   flexibility: string
 }
 
+// Vapi omits structured-data fields it has no value for (a "fully booked" call
+// returns no confirmedTime at all), so missing and null mean the same thing.
+// Only `booked` is required: without it the outcome is genuinely unknown.
 export const CallOutcomeSchema = z.object({
   booked: z.boolean(),
-  confirmedTime: z.string().nullable(),
-  confirmationCode: z.string().nullable(),
-  depositRequiredCents: z.number().int().min(0),
-  notes: z.string(),
+  confirmedTime: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? null),
+  confirmationCode: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? null),
+  depositRequiredCents: z
+    .number()
+    .int()
+    .min(0)
+    .nullish()
+    .transform((v) => v ?? 0),
+  notes: z
+    .string()
+    .nullish()
+    .transform((v) => v ?? ''),
 })
 export type CallOutcome = z.infer<typeof CallOutcomeSchema>
 

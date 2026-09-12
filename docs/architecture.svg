@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="880" viewBox="0 0 1480 880" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f2937"/>
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+  </defs>
+  <rect width="1480" height="880" fill="#ffffff"/>
+
+  <text x="60" y="68" font-size="34" font-weight="700" fill="#111827">Errands: how it works</text>
+  <text x="60" y="102" font-size="18" fill="#4b5563">A Strands agent that books dinner end to end and only interrupts you when money is involved</text>
+
+  <!-- You -->
+  <rect x="60" y="380" width="220" height="150" rx="14" fill="#f8fafc" stroke="#1f2937" stroke-width="2"/>
+  <text x="170" y="420" font-size="24" font-weight="700" text-anchor="middle" fill="#111827">You</text>
+  <text x="170" y="452" font-size="16" text-anchor="middle" fill="#374151">plain-language</text>
+  <text x="170" y="474" font-size="16" text-anchor="middle" fill="#374151">request in; one</text>
+  <text x="170" y="496" font-size="16" text-anchor="middle" fill="#374151">decision + reply out</text>
+
+  <!-- Strands container -->
+  <rect x="330" y="140" width="650" height="640" rx="18" fill="#eef2ff" stroke="#6366f1" stroke-width="2.5"/>
+  <text x="355" y="174" font-size="20" font-weight="700" fill="#3730a3">Strands Agents SDK (TypeScript)</text>
+
+  <!-- Agent loop -->
+  <rect x="360" y="195" width="320" height="120" rx="12" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+  <text x="520" y="230" font-size="20" font-weight="700" text-anchor="middle" fill="#111827">Agent loop</text>
+  <text x="520" y="258" font-size="16" text-anchor="middle" fill="#374151">Claude Sonnet 4.6 on Amazon Bedrock</text>
+  <text x="520" y="282" font-size="16" text-anchor="middle" fill="#374151">system prompt + 3 tools, max 3 calls</text>
+
+  <!-- Intervention -->
+  <rect x="360" y="360" width="320" height="190" rx="12" fill="#fff7ed" stroke="#c2410c" stroke-width="2.5"/>
+  <text x="520" y="394" font-size="20" font-weight="700" text-anchor="middle" fill="#9a3412">Spending gate intervention</text>
+  <text x="520" y="422" font-size="16" text-anchor="middle" fill="#374151">runs before EVERY tool call</text>
+  <text x="520" y="452" font-size="16" text-anchor="middle" fill="#374151">forbid: deny · allow: proceed</text>
+  <text x="520" y="476" font-size="16" text-anchor="middle" fill="#374151">confirm: pause and ask the human</text>
+  <text x="520" y="506" font-size="16" text-anchor="middle" fill="#374151">injects a single-use approval code;</text>
+  <text x="520" y="528" font-size="16" text-anchor="middle" fill="#374151">codes the model invents are dropped</text>
+
+  <!-- Commit -->
+  <rect x="360" y="600" width="320" height="150" rx="12" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+  <text x="520" y="634" font-size="20" font-weight="700" text-anchor="middle" fill="#111827">gate.commit() + ledger</text>
+  <text x="520" y="662" font-size="16" text-anchor="middle" fill="#374151">second check at the point of action:</text>
+  <text x="520" y="686" font-size="16" text-anchor="middle" fill="#374151">caps (per charge, 24 h, 7 days),</text>
+  <text x="520" y="710" font-size="16" text-anchor="middle" fill="#374151">kill switch, code bound to</text>
+  <text x="520" y="734" font-size="16" text-anchor="middle" fill="#374151">merchant + amount + category</text>
+
+  <!-- Tools -->
+  <rect x="740" y="195" width="215" height="95" rx="12" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+  <text x="847" y="233" font-size="18" font-weight="700" text-anchor="middle" fill="#111827">search_restaurants</text>
+  <text x="847" y="260" font-size="15" text-anchor="middle" fill="#374151">returns ids, not numbers</text>
+
+  <rect x="740" y="380" width="215" height="95" rx="12" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+  <text x="847" y="418" font-size="18" font-weight="700" text-anchor="middle" fill="#111827">call_restaurant</text>
+  <text x="847" y="445" font-size="15" text-anchor="middle" fill="#374151">AI voice call by id</text>
+
+  <rect x="740" y="600" width="215" height="95" rx="12" fill="#ffffff" stroke="#1f2937" stroke-width="2"/>
+  <text x="847" y="638" font-size="18" font-weight="700" text-anchor="middle" fill="#111827">pay_deposit</text>
+  <text x="847" y="665" font-size="15" text-anchor="middle" fill="#374151">only the quoted amount</text>
+
+  <!-- External services -->
+  <rect x="1050" y="195" width="370" height="95" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1235" y="233" font-size="18" font-weight="700" text-anchor="middle" fill="#14532d">Google Places API (New)</text>
+  <text x="1235" y="260" font-size="15" text-anchor="middle" fill="#374151">real restaurants, ratings, price level</text>
+
+  <rect x="1050" y="350" width="370" height="95" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1235" y="388" font-size="18" font-weight="700" text-anchor="middle" fill="#14532d">Vapi outbound voice call</text>
+  <text x="1235" y="415" font-size="15" text-anchor="middle" fill="#374151">says it is an AI; never pays on the phone</text>
+
+  <rect x="1050" y="475" width="370" height="95" rx="12" fill="#ffffff" stroke="#16a34a" stroke-width="2" stroke-dasharray="8 6"/>
+  <text x="1235" y="512" font-size="18" font-weight="700" text-anchor="middle" fill="#14532d">Demo restaurant lines</text>
+  <text x="1235" y="539" font-size="15" text-anchor="middle" fill="#374151">"full" line, then "open" line ($15 deposit)</text>
+
+  <rect x="1050" y="600" width="370" height="95" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="1235" y="638" font-size="18" font-weight="700" text-anchor="middle" fill="#14532d">Stripe (test mode only)</text>
+  <text x="1235" y="665" font-size="15" text-anchor="middle" fill="#374151">live keys are refused</text>
+
+  <!-- Arrows: request in -->
+  <path d="M280,420 L320,420 L320,255 L358,255" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="286" y="440" font-size="14" fill="#1f2937">request</text>
+
+  <!-- Agent loop to intervention -->
+  <path d="M520,315 L520,358" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="530" y="343" font-size="14" fill="#1f2937">every tool call</text>
+
+  <!-- Intervention to tools bus -->
+  <path d="M680,455 L712,455" fill="none" stroke="#1f2937" stroke-width="2.5"/>
+  <path d="M712,242 L712,648" fill="none" stroke="#1f2937" stroke-width="2.5"/>
+  <path d="M712,242 L738,242" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M712,427 L738,427" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M712,648 L738,648" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Decision back to human -->
+  <path d="M360,500 L282,500" fill="none" stroke="#c2410c" stroke-width="2.5" stroke-dasharray="7 5" marker-end="url(#arrow-accent)"/>
+  <text x="120" y="562" font-size="15" font-weight="700" fill="#9a3412">"Approve $15 deposit at</text>
+  <text x="120" y="582" font-size="15" font-weight="700" fill="#9a3412">Trattoria Roma? y/N"</text>
+
+  <!-- Tools to commit -->
+  <path d="M740,680 L682,680" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Tools to services -->
+  <path d="M955,242 L1048,242" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M955,410 L1048,398" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M1235,445 L1235,473" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <path d="M955,648 L1048,648" fill="none" stroke="#1f2937" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Footer -->
+  <text x="60" y="835" font-size="16" fill="#4b5563">Demo mode routes every call to test lines we control (no real business is dialed). Deposits use Stripe test mode. The spending rules live in policy.json.</text>
+</svg>
