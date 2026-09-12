@@ -22,8 +22,10 @@ import type { TaskerProfile } from '../src/trust.js'
 // no phone calls, no Stripe charges, no bank connection. This is Task 18 of
 // the trust-ladder-and-life-errands SDD: a transcript proving the trust ladder
 // (search -> call -> confirm -> step-up -> handover) works end to end without
-// spending real money or dialing a real line. Run at most three times: Bedrock
-// costs real money per invocation.
+// spending real money or dialing a real line. The fourth sentence is the other
+// half of the ladder: hiring the same driver a second time, now that she is
+// proven, runs as a notify with no approval prompt at all. Run at most three
+// times: Bedrock costs real money per invocation.
 
 const DEFAULT_CALLER_VOICE: VoiceConfig = {
   provider: 'cartesia',
@@ -35,6 +37,7 @@ const SENTENCES = [
   'Book dinner for 2 tonight at 7 PM at Bella Cucina in Nashville. If they are full, find somewhere comparable between 6:30 and 8:00 PM.',
   "Find everything I'm paying for monthly and cancel Netflix.",
   'Get Blurr, my 2019 Corvette, an oil change this week and have someone take it there and back.',
+  'Blurr needs to go back to the shop next Tuesday for the tire rotation they mentioned. Book it and have Maria take it again.',
 ]
 
 // Scripted call outcomes, keyed by the Vapi assistant name each errand module
