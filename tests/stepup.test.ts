@@ -13,7 +13,7 @@ describe('step-up', () => {
     const text = formatStepUp('123456', summary)
     expect(text).toContain('Nashville Lube')
     expect(text).toContain('$89.00')
-    expect(text).toContain('service_booking')
+    expect(text).toContain('(service booking)')
     expect(text).toContain('asked for a quote by phone')
     expect(text).toContain('123456')
   })

@@ -164,4 +164,15 @@ describe('buildScreenAssistant', () => {
       expect.arrayContaining(['available', 'answers', 'notes']),
     )
   })
+
+  it('requires exactly manual, insurance and slot as keys of the answers object', () => {
+    const answersSchema = assistant.analysisPlan.structuredDataPlan.schema.properties.answers as {
+      properties: Record<string, unknown>
+      required: string[]
+      additionalProperties: boolean
+    }
+    expect(answersSchema.required).toEqual(['manual', 'insurance', 'slot'])
+    expect(Object.keys(answersSchema.properties)).toEqual(['manual', 'insurance', 'slot'])
+    expect(answersSchema.additionalProperties).toBe(false)
+  })
 })

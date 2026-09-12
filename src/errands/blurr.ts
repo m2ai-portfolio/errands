@@ -22,6 +22,10 @@ import type { CallRunner, ErrandModule, Json } from './types.js'
 // hold the customer's keys is vetted on paper, screened by phone, and only then
 // put in front of the human owner for a first-handover approval.
 
+// The call budget below is a per-module-instance counter, not per-errand-name:
+// one CLI process is expected to construct and run exactly one errand module
+// before exiting, so a single shared counter is correct and there is no need
+// to key it by errand id.
 export const MAX_CALLS_PER_ERRAND = 3
 
 // The task class every Blurr hire is vetted against.
@@ -36,6 +40,33 @@ const SCREEN_QUESTIONS = [
   'Can you make the slot we just described, both the drop off and the pick up?',
 ]
 const SCREEN_KEYS = ['manual', 'insurance', 'slot'] as const
+
+// The screen call's structured extraction does not always come back keyed
+// exactly `manual` / `insurance` / `slot`, even though the prompt asks for
+// those keys: a live Vapi call for this same screen once returned
+// `available_this_week` / `manual_transmission` / `insured_to_drive_customer_vehicle`,
+// and reading those as three missing keys failed a tasker who answered yes to
+// everything. An exact key always wins; otherwise fall back to any key whose
+// name plausibly means the same thing. A key that matches nothing is still a
+// missing answer, not a guessed true.
+const SCREEN_KEY_HINTS: Readonly<Record<(typeof SCREEN_KEYS)[number], readonly string[]>> = {
+  manual: ['manual'],
+  insurance: ['insur'],
+  slot: ['slot', 'avail'],
+}
+
+function resolveScreenAnswer(
+  answers: Record<string, boolean>,
+  key: (typeof SCREEN_KEYS)[number],
+): boolean {
+  if (key in answers) return answers[key] === true
+  const hints = SCREEN_KEY_HINTS[key]
+  for (const [candidateKey, value] of Object.entries(answers)) {
+    const lower = candidateKey.toLowerCase()
+    if (hints.some((hint) => lower.includes(hint))) return value === true
+  }
+  return false
+}
 
 export interface Shop {
   id: string
@@ -180,6 +211,10 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
       if (outcome?.booked) {
         bookings.set(shop.id, { quoteCents: outcome.quoteCents, slot: outcome.slot })
         if (outcome.slot) bookedSlot = outcome.slot
+        // ALREADY_PAID guards a single booking, not the shop forever: a new
+        // booked outcome is a new visit with a new payable quote, so a prior
+        // payment for this shop no longer blocks pay_service.
+        paidShops.delete(shop.id)
       } else {
         // A later not-booked (or unclear) call invalidates an earlier stored
         // quote: nobody stays payable off a booking that no longer stands.
@@ -303,7 +338,7 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
       else {
         if (!outcome.available) failures.push('SCREEN_UNAVAILABLE')
         for (const key of SCREEN_KEYS) {
-          if (outcome.answers[key] !== true) failures.push(`SCREEN_ANSWER_${key}`)
+          if (!resolveScreenAnswer(outcome.answers, key)) failures.push(`SCREEN_ANSWER_${key}`)
         }
       }
       const passed = failures.length === 0

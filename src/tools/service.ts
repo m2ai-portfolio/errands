@@ -104,9 +104,14 @@ const screenOutcomeJsonSchema = {
     },
     answers: {
       type: 'object',
-      additionalProperties: { type: 'boolean' },
-      description:
-        'Each screening question answer, keyed by its short key, as yes (true) or no (false).',
+      properties: {
+        manual: { type: 'boolean', description: 'Comfortable driving a manual transmission.' },
+        insurance: { type: 'boolean', description: "Insured to drive a customer's vehicle." },
+        slot: { type: 'boolean', description: 'Can make the described drop-off and pick-up slot.' },
+      },
+      required: ['manual', 'insurance', 'slot'],
+      additionalProperties: false,
+      description: 'Each screening question answer, under exactly these three keys, true or false.',
     },
     notes: { type: 'string', description: 'One sentence on anything the customer must know.' },
   },
@@ -121,7 +126,7 @@ export function buildScreenAssistant(req: ScreenRequest, voice: VoiceConfig) {
     `Describe the task: ${req.task}, at this slot: ${req.slot}.`,
     'Ask each of the following questions, in order, and record each answer as yes or no under a short key:',
     questionLines,
-    'Use these keys in order for the answers object: manual, insurance, slot.',
+    'Record the answers under exactly these keys: manual (drives a manual transmission), insurance (vehicle insurance current), slot (available at the slot). Use no other keys.',
     "Do not share the customer's home location or any other location details, and do not share the customer's full name, only their first name.",
     'Thank them for their time and end the call politely once every question has been answered.',
   ].join('\n')

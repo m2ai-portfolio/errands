@@ -394,6 +394,53 @@ describe('blurr errand: oil change plus a hired driver', () => {
     expect(bookings).toHaveLength(1)
   })
 
+  it('a new booked outcome for a shop clears its paid state: a second visit is a new payable quote', async () => {
+    const SECOND_VISIT: ServiceOutcome = {
+      booked: true,
+      slot: 'Tuesday 9:00 AM',
+      quoteCents: 6500,
+      confirmation: 'NL-88',
+      notes: 'Tire rotation.',
+    }
+    const h = harness({ outcomes: [SERVICE, SECOND_VISIT] })
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    const firstPaid = await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 8900 })
+    expect(firstPaid).toMatchObject({ status: 'paid', amountCents: 8900 })
+
+    // A brand-new booked call for the same shop is a new visit: the earlier
+    // payment no longer blocks paying for it.
+    const secondBook = await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    expect(secondBook).toMatchObject({ booked: true, quoteCents: 6500 })
+    const secondPaid = await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 6500 })
+    expect(secondPaid).toMatchObject({ status: 'paid', amountCents: 6500 })
+
+    // A third payment against that SAME (second) booking, with no new
+    // book_service call in between, is still refused as a double charge.
+    expect(await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 6500 })).toEqual({
+      denied: 'Spending gate: SPEND_INPUT_INVALID: ALREADY_PAID',
+    })
+  })
+
+  it('passes the screen even when the call extraction uses different key names for the same three answers', async () => {
+    // A live Vapi call for this same screen once came back with
+    // available_this_week / manual_transmission / insured_to_drive_customer_vehicle
+    // instead of manual / insurance / slot. Reading those as three missing
+    // (false) answers failed a tasker who actually said yes to everything.
+    const MISNAMED_SCREEN = {
+      available: true,
+      answers: {
+        available_this_week: true,
+        manual_transmission: true,
+        insured_to_drive_customer_vehicle: true,
+      },
+      notes: '',
+    }
+    const h = harness({ outcomes: [SERVICE, MISNAMED_SCREEN] })
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    const screen = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    expect(screen).toMatchObject({ passed: true, failures: [] })
+  })
+
   it('a later failed screen invalidates an earlier passed one', async () => {
     const h = harness({
       outcomes: [

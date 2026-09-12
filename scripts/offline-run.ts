@@ -189,6 +189,10 @@ async function main() {
   const search = new FixtureRestaurantSearch(restaurantFixtures)
   const bank = new FixtureBank(transactionFixtures)
   const taskers = new FixtureTaskers(taskerFixtures)
+  // One call runner for the whole run, shared by every sentence's fresh
+  // errand modules: it is what tracks how many times each scripted assistant
+  // name has been dialed (the dinner reservation call's second-attempt
+  // fallback depends on this), so it must not be rebuilt per sentence.
   const runCall = buildRunCall()
   const deposits = buildDeposits()
   const voice = DEFAULT_CALLER_VOICE
@@ -199,36 +203,44 @@ async function main() {
   // built up by the earlier, smaller spends.
   const gate = createGate(config.policy)
 
-  const dinner = dinnerErrand({ config, gate, search, runCall, deposits, voice, log })
-  const subscriptions = subscriptionsErrand({ config, gate, bank, runCall, voice, log })
-  const blurr = blurrErrand({
-    config,
-    gate,
-    taskers,
-    shops: shopFixtures,
-    runCall,
-    deposits,
-    voice,
-    vetting: config.policy.vetting,
-    log,
-  })
-
-  const agent = createErrandsAgent(
-    {
-      modules: [dinner, subscriptions, blurr],
+  // Each sentence gets brand-new errand modules and a brand-new agent. A
+  // module instance's per-errand counters (Blurr's call budget, its booked
+  // and paid state) are meant to reset with every CLI process in production,
+  // which this run simulates by rebuilding them per sentence; the gate and
+  // the call runner are the two things that must persist across sentences,
+  // so they alone are built once above and threaded into every rebuild.
+  function buildModulesForSentence() {
+    const dinner = dinnerErrand({ config, gate, search, runCall, deposits, voice, log })
+    const subscriptions = subscriptionsErrand({ config, gate, bank, runCall, voice, log })
+    const blurr = blurrErrand({
+      config,
       gate,
-      askHuman,
-      stepUp,
-      notify: log,
-      customerName: config.customerName,
-    },
-    config.bedrock,
-  )
+      taskers,
+      shops: shopFixtures,
+      runCall,
+      deposits,
+      voice,
+      vetting: config.policy.vetting,
+      log,
+    })
+    return [dinner, subscriptions, blurr]
+  }
 
   stdout.write(`Errands offline run (${config.mode} mode, search: ${search.source})\n\n`)
 
   for (const [i, sentence] of SENTENCES.entries()) {
     stdout.write(`\n=== Errand ${i + 1}/${SENTENCES.length} ===\nRequest: ${sentence}\n\n`)
+    const agent = createErrandsAgent(
+      {
+        modules: buildModulesForSentence(),
+        gate,
+        askHuman,
+        stepUp,
+        notify: log,
+        customerName: config.customerName,
+      },
+      config.bedrock,
+    )
     await agent.invoke(sentence)
     stdout.write('\n')
   }

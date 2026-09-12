@@ -1,6 +1,7 @@
 import { InterventionActions, InterventionHandler } from '@strands-agents/sdk'
 import type { BeforeToolCallEvent, OnError } from '@strands-agents/sdk'
 import type { Gate, SpendRequest } from './gate.js'
+import { categoryLabel } from './labels.js'
 import { sanitizeForPrompt } from './sanitize.js'
 import type { StepUpChannel } from './stepup.js'
 
@@ -22,17 +23,6 @@ const isObject = (value: unknown): value is JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 export const formatCents = (cents: number): string => `$${(cents / 100).toFixed(2)}`
-
-// Human copy for a spend category. The raw key is a policy identifier, not
-// something to show a person mid-decision.
-const CATEGORY_LABELS: Readonly<Record<string, string>> = {
-  restaurant_deposit: 'restaurant deposit',
-  service_booking: 'service booking',
-  call: 'phone call',
-}
-
-const categoryLabel = (category: string): string =>
-  CATEGORY_LABELS[category] ?? category.replace(/_/g, ' ')
 
 // "Maria R." already ends in a period; appending another gives "Maria R..".
 const noTrailingPeriod = (text: string): string => text.replace(/\.+$/, '')
