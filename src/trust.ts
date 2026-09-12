@@ -8,6 +8,7 @@ export interface TrustEvent {
   counterpartyId: string
   kind: 'clean' | 'incident'
   detail: string
+  handover?: true
   at: string
 }
 
@@ -66,7 +67,10 @@ export function rungOf(
       clean = 0
       continue
     }
-    if (rung === 'unknown' && event.detail === 'screened') rung = 'screened'
+    if (rung === 'unknown' && event.detail === 'screened') {
+      rung = 'screened'
+      continue
+    }
     clean += 1
     if (rung === 'screened' && clean >= promoteAfter) rung = 'proven'
   }

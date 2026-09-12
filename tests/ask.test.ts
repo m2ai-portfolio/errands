@@ -53,8 +53,17 @@ describe('createAsk', () => {
     expect(await wrong('Approve?', { expectCode: '123456' })).toBe(false)
   })
 
-  it('ERRANDS_APPROVE=yes auto-answers a code prompt', async () => {
-    const ask = createAsk(streamOf(''), sink, { ERRANDS_APPROVE: 'yes' })
-    expect(await ask('Approve?', { expectCode: '123456' })).toBe(true)
+  it('ERRANDS_APPROVE=yes cannot approve a step-up and never echoes the code', async () => {
+    const { output, text } = io()
+    const ask = createAsk(streamOf(''), output, { ERRANDS_APPROVE: 'yes' })
+    expect(await ask('Approve?', { expectCode: '123456' })).toBe(false)
+    expect(text()).not.toContain('123456')
+  })
+
+  it('an empty ERRANDS_APPROVE is treated as unset and falls through to reading a line', async () => {
+    const { input, output } = io()
+    input.write('y\n')
+    const ask = createAsk(input, output, { ERRANDS_APPROVE: '' })
+    expect(await ask('Spend $15?')).toBe(true)
   })
 })

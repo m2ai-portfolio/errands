@@ -23,6 +23,7 @@ const policy: Policy = {
     restaurant_deposit: 'confirm',
     gift: 'forbid',
     hire: 'confirm',
+    cancellation: 'confirm',
   },
 }
 
@@ -196,11 +197,14 @@ describe('trust ladder', () => {
   })
 
   it('refuses to hire a human at rung unknown', () => {
-    expect(createGate(policy).evaluate(hire(), t0)).toMatchObject({
+    const gate = createGate(policy)
+    expect(gate.evaluate(hire(), t0)).toMatchObject({
       decision: 'forbid',
       reason: 'COUNTERPARTY_UNKNOWN',
       rung: 'unknown',
     })
+    expect(reasonOf(() => gate.requestApproval(hire(), t0))).toBe('COUNTERPARTY_UNKNOWN')
+    expect(reasonOf(() => gate.commit(hire(), t0))).toBe('COUNTERPARTY_UNKNOWN')
   })
 
   it('a first handover always asks, even for a trusted counterparty', () => {
@@ -210,6 +214,7 @@ describe('trust ladder', () => {
       reason: 'FIRST_HANDOVER',
       rung: 'trusted',
     })
+    expect(reasonOf(() => gate.commit(hire({ handover: true }), t0))).toBe('APPROVAL_REQUIRED')
   })
 
   it('a second handover after a clean one runs as notify when under the cap', () => {
@@ -254,6 +259,9 @@ describe('trust ladder', () => {
       gate.commit(deposit(), days(i), code)
     }
     expect(gate.evaluate(deposit({ amountCents: 2600 }), days(3)).decision).toBe('confirm')
+    expect(reasonOf(() => gate.commit(deposit({ amountCents: 2600 }), days(3)))).toBe(
+      'APPROVAL_REQUIRED',
+    )
   })
 
   it('flags step-up at exactly stepUpCents and not below', () => {
@@ -276,6 +284,131 @@ describe('trust ladder', () => {
       decision: 'confirm',
       reason: 'FIRST_HANDOVER',
       rung: 'screened',
+    })
+  })
+})
+
+describe('recordScreened is human-only (E1)', () => {
+  it('refuses to screen an agent counterparty', () => {
+    const gate = createGate(policy)
+    expect(() => gate.recordScreened('agent:restaurant_deposit', t0)).toThrow('NOT_A_HUMAN')
+  })
+
+  it('three recordScreened calls on a human still leave her at screened, not proven', () => {
+    const gate = createGate(policy)
+    gate.recordScreened('maria-r', t0)
+    gate.recordScreened('maria-r', minutes(1))
+    gate.recordScreened('maria-r', minutes(2))
+    const hireRequest: SpendRequest = {
+      merchant: 'Maria R.',
+      amountCents: 3800,
+      category: 'hire',
+      counterpartyId: 'maria-r',
+      handover: true,
+    }
+    expect(gate.evaluate(hireRequest, minutes(3))).toMatchObject({
+      decision: 'confirm',
+      reason: 'FIRST_HANDOVER',
+      rung: 'screened',
+    })
+  })
+})
+
+describe('notify requires a real cap (C1)', () => {
+  it('never lets confirmed zero-cent cancellations decay into an unattended notify', () => {
+    const gate = createGate(policy)
+    const cancel = (): SpendRequest => ({
+      merchant: 'Streaming Co',
+      amountCents: 0,
+      category: 'cancellation',
+    })
+    for (let i = 0; i < 3; i += 1) {
+      const code = gate.requestApproval(cancel(), days(i)).code
+      gate.commit(cancel(), days(i), code)
+    }
+    const fourth = gate.evaluate(cancel(), days(3))
+    expect(fourth.decision).toBe('confirm')
+    expect(reasonOf(() => gate.commit(cancel(), days(3)))).toBe('APPROVAL_REQUIRED')
+  })
+
+  it('never allows notify at or above stepUpCents, even under an equal cap (I3)', () => {
+    const withEqualCap: Policy = {
+      ...policy,
+      notifyCapCents: { ...policy.notifyCapCents, restaurant_deposit: 5000 },
+    }
+    const gate = createGate(withEqualCap)
+    for (let i = 0; i < 3; i += 1) {
+      const code = gate.requestApproval(deposit(), days(i)).code
+      gate.commit(deposit(), days(i), code)
+    }
+    expect(gate.evaluate(deposit({ amountCents: 5000 }), days(3))).toMatchObject({
+      decision: 'confirm',
+      reason: 'CONFIRM_CATEGORY',
+      stepUp: true,
+    })
+  })
+})
+
+describe('allow-category ordering (I1)', () => {
+  const strangerRequest: SpendRequest = {
+    merchant: 'Stranger',
+    amountCents: 0,
+    category: 'call',
+    counterpartyId: 'stranger-1',
+    handover: true,
+  }
+
+  it('forbids an allow-category request naming an unknown counterparty', () => {
+    expect(createGate(policy).evaluate(strangerRequest, t0)).toMatchObject({
+      decision: 'forbid',
+      reason: 'COUNTERPARTY_UNKNOWN',
+    })
+  })
+
+  it('asks FIRST_HANDOVER for an allow-category request naming a trusted counterparty', () => {
+    const trustedStranger: Policy = {
+      ...policy,
+      counterparties: { 'stranger-1': { rung: 'trusted' } },
+    }
+    expect(createGate(trustedStranger).evaluate(strangerRequest, t0)).toMatchObject({
+      decision: 'confirm',
+      reason: 'FIRST_HANDOVER',
+    })
+  })
+
+  it('still allows a call with no counterparty and no handover, and writes no trust event', () => {
+    const gate = createGate(policy)
+    gate.commit(deposit({ category: 'call', amountCents: 0 }), t0)
+    expect(gate.events()).toHaveLength(0)
+  })
+})
+
+describe('handover event typing (I2)', () => {
+  it('a confirmed spend in a category literally named "handover" does not fake a clean handover event', () => {
+    const trusted: Policy = {
+      ...policy,
+      counterparties: { 'maria-r': { rung: 'trusted' } },
+      categories: { ...policy.categories, handover: 'confirm' },
+    }
+    const gate = createGate(trusted)
+    const namedCategorySpend: SpendRequest = {
+      merchant: 'Handover Co',
+      amountCents: 0,
+      category: 'handover',
+      counterpartyId: 'maria-r',
+    }
+    const code = gate.requestApproval(namedCategorySpend, t0).code
+    gate.commit(namedCategorySpend, t0, code)
+    const realHire: SpendRequest = {
+      merchant: 'Maria R.',
+      amountCents: 3800,
+      category: 'hire',
+      counterpartyId: 'maria-r',
+      handover: true,
+    }
+    expect(gate.evaluate(realHire, minutes(1))).toMatchObject({
+      decision: 'confirm',
+      reason: 'FIRST_HANDOVER',
     })
   })
 })

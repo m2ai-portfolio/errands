@@ -18,29 +18,41 @@ const VettingSchema = z.object({
   phoneScreenRequired: z.boolean(),
 })
 
-const PolicySchema = z.object({
-  enabled: z.boolean(),
-  perTransactionCapCents: z.number().int().nonnegative(),
-  dailyCapCents: z.number().int().nonnegative(),
-  weeklyCapCents: z.number().int().nonnegative(),
-  approvalTtlMinutes: z.number().int().positive(),
-  stepUpCents: z.number().int().nonnegative(),
-  promoteAfter: z.number().int().positive(),
-  notifyCapCents: z.record(z.string(), z.number().int().nonnegative()),
-  vetting: VettingSchema,
-  counterparties: z.record(
-    z.string(),
-    z
-      .object({
-        rung: z.enum(['unknown', 'screened', 'proven', 'trusted']),
-        note: z.string().optional(),
-      })
-      .transform((grant): CounterpartyGrant =>
-        grant.note === undefined ? { rung: grant.rung } : { rung: grant.rung, note: grant.note },
-      ),
-  ),
-  categories: z.record(z.string(), z.enum(['allow', 'confirm', 'forbid'])),
-})
+const PolicySchema = z
+  .object({
+    enabled: z.boolean(),
+    perTransactionCapCents: z.number().int().nonnegative(),
+    dailyCapCents: z.number().int().nonnegative(),
+    weeklyCapCents: z.number().int().nonnegative(),
+    approvalTtlMinutes: z.number().int().positive(),
+    stepUpCents: z.number().int().nonnegative(),
+    promoteAfter: z.number().int().positive(),
+    notifyCapCents: z.record(z.string(), z.number().int().nonnegative()),
+    vetting: VettingSchema,
+    counterparties: z.record(
+      z.string(),
+      z
+        .object({
+          rung: z.enum(['unknown', 'screened', 'proven', 'trusted']),
+          note: z.string().optional(),
+        })
+        .transform((grant): CounterpartyGrant =>
+          grant.note === undefined ? { rung: grant.rung } : { rung: grant.rung, note: grant.note },
+        ),
+    ),
+    categories: z.record(z.string(), z.enum(['allow', 'confirm', 'forbid'])),
+  })
+  .superRefine((policy, ctx) => {
+    for (const [category, cap] of Object.entries(policy.notifyCapCents)) {
+      if (cap >= policy.stepUpCents) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['notifyCapCents', category],
+          message: 'NOTIFY_CAP_MUST_BE_BELOW_STEP_UP',
+        })
+      }
+    }
+  })
 
 const DemoSchema = z.object({
   outboundPhoneNumberId: z.string().min(1),

@@ -17,7 +17,7 @@ writeFileSync(
     approvalTtlMinutes: 30,
     stepUpCents: 1000,
     promoteAfter: 3,
-    notifyCapCents: { restaurant_deposit: 2500 },
+    notifyCapCents: { restaurant_deposit: 500 },
     vetting: {
       minRating: 4.7,
       minJobs: 50,
@@ -146,6 +146,35 @@ describe('loadConfig', () => {
         paths,
       ).bankSource,
     ).toBe('stripe')
+  })
+
+  it('rejects a policy whose notify cap is at or above stepUpCents', () => {
+    const badCapPath = join(dir, 'policy-notify-cap-too-high.json')
+    writeFileSync(
+      badCapPath,
+      JSON.stringify({
+        enabled: true,
+        perTransactionCapCents: 10000,
+        dailyCapCents: 15000,
+        weeklyCapCents: 25000,
+        approvalTtlMinutes: 30,
+        stepUpCents: 5000,
+        promoteAfter: 3,
+        notifyCapCents: { service_booking: 5000 },
+        vetting: {
+          minRating: 4.7,
+          minJobs: 50,
+          requireBackgroundCheck: true,
+          requireInsuredFor: { vehicle: true },
+          phoneScreenRequired: true,
+        },
+        counterparties: {},
+        categories: { call: 'allow', service_booking: 'confirm' },
+      }),
+    )
+    expect(() => loadConfig({ VAPI_API_KEY: 'k' }, { ...paths, policy: badCapPath })).toThrow(
+      'NOTIFY_CAP_MUST_BE_BELOW_STEP_UP',
+    )
   })
 
   it('rejects a policy missing the trust fields', () => {

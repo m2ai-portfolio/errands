@@ -57,6 +57,18 @@ describe('rungOf', () => {
     }
     expect(rungOf('maria-r', {}, [screened], 3, 'unknown')).toBe('screened')
   })
+  it('the screened event itself does not count toward promotion (M1)', () => {
+    const screened: TrustEvent = {
+      counterpartyId: 'maria-r',
+      kind: 'clean',
+      detail: 'screened',
+      at: ev('clean', 0).at,
+    }
+    const twoClean = [screened, ev('clean', 1), ev('clean', 2)]
+    expect(rungOf('maria-r', {}, twoClean, 3, 'unknown')).toBe('screened')
+    const threeClean = [screened, ev('clean', 1), ev('clean', 2), ev('clean', 3)]
+    expect(rungOf('maria-r', {}, threeClean, 3, 'unknown')).toBe('proven')
+  })
 })
 
 const policy = {

@@ -186,6 +186,26 @@ describe('SpendingGateIntervention', () => {
     expect(action.type).toBe('transform')
   })
 
+  it('denies and records nothing when the human types the wrong step-up code', async () => {
+    const delivered: string[] = []
+    const stepUp = async (code: string) => {
+      delivered.push(code)
+    }
+    const ask = vi.fn(async (_p: string, o?: { expectCode?: string }) => o?.expectCode === 'wrong')
+    const gate = createGate(policy)
+    const intervention = new SpendingGateIntervention(
+      gate,
+      spendTools,
+      ask,
+      stepUp,
+      () => {},
+      () => t0,
+    )
+    const action = await intervention.beforeToolCall(depositEvent(5000))
+    expect(action).toMatchObject({ type: 'deny', reason: 'Spending gate: HUMAN_DECLINED' })
+    expect(gate.ledger()).toHaveLength(0)
+  })
+
   it('does not deliver a code out of band below stepUpCents', async () => {
     const delivered: string[] = []
     const intervention = new SpendingGateIntervention(

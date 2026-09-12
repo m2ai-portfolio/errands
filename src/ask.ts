@@ -13,7 +13,8 @@ export function createAsk(
   output: Writable,
   env: NodeJS.ProcessEnv = process.env,
 ): AskHuman {
-  const preset = env.ERRANDS_APPROVE?.trim().toLowerCase()
+  const raw = env.ERRANDS_APPROVE?.trim().toLowerCase()
+  const preset = raw ? raw : undefined
   return async (prompt, options) => {
     const expectCode = options?.expectCode
     output.write(
@@ -22,8 +23,12 @@ export function createAsk(
         : `\n>>> DECISION NEEDED: ${prompt} [y/N] `,
     )
     if (preset !== undefined) {
+      if (expectCode) {
+        output.write('(ERRANDS_APPROVE cannot approve a step-up; declined)\n')
+        return false
+      }
       const approved = preset === 'yes' || preset === 'y'
-      output.write(`${approved ? (expectCode ?? 'y') : 'n'}  (ERRANDS_APPROVE)\n`)
+      output.write(`${approved ? 'y' : 'n'}  (ERRANDS_APPROVE)\n`)
       return approved
     }
     // The reader is created per question so buffered piped input is not

@@ -64,6 +64,7 @@ export type GateErrorReason =
   | 'APPROVAL_INVALID'
   | 'APPROVAL_EXPIRED'
   | 'APPROVAL_USED'
+  | 'NOT_A_HUMAN'
 
 export interface Evaluation {
   decision: Decision
@@ -122,7 +123,7 @@ export function createGate(
     )
 
   const hadCleanHandover = (id: string): boolean =>
-    events.some((e) => e.counterpartyId === id && e.kind === 'clean' && e.detail === 'handover')
+    events.some((e) => e.counterpartyId === id && e.kind === 'clean' && e.handover === true)
 
   function evaluate(request: SpendRequest, now: Date): Evaluation {
     const rung = rungFor(request)
@@ -146,15 +147,20 @@ export function createGate(
     if (spentWithin(now, 7 * DAY_MS) + amountCents > policy.weeklyCapCents) {
       return forbid('OVER_WEEKLY_CAP')
     }
-    if (mode === 'allow')
-      return { decision: 'allow', reason: 'ALLOW_CATEGORY', stepUp: false, rung }
     if (request.counterpartyId && rung === 'unknown') return forbid('COUNTERPARTY_UNKNOWN')
     const stepUp = amountCents >= policy.stepUpCents
     if (request.handover && !hadCleanHandover(counterpartyOf(request))) {
       return { decision: 'confirm', reason: 'FIRST_HANDOVER', stepUp, rung }
     }
+    if (mode === 'allow')
+      return { decision: 'allow', reason: 'ALLOW_CATEGORY', stepUp: false, rung }
     const notifyCap = policy.notifyCapCents[category] ?? 0
-    if ((rung === 'proven' || rung === 'trusted') && amountCents <= notifyCap) {
+    if (
+      notifyCap > 0 &&
+      amountCents <= notifyCap &&
+      amountCents < policy.stepUpCents &&
+      (rung === 'proven' || rung === 'trusted')
+    ) {
       return { decision: 'notify', reason: 'TRACK_RECORD', stepUp: false, rung }
     }
     return { decision: 'confirm', reason: 'CONFIRM_CATEGORY', stepUp, rung }
@@ -213,6 +219,7 @@ export function createGate(
         counterpartyId: counterpartyOf(request),
         kind: 'clean',
         detail: request.handover ? 'handover' : request.category,
+        ...(request.handover ? { handover: true } : {}),
         at: now.toISOString(),
       })
     }
@@ -226,6 +233,7 @@ export function createGate(
   }
 
   function recordScreened(counterpartyId: string, now: Date): TrustEvent {
+    if (counterpartyId.startsWith('agent:')) throw new GateError('NOT_A_HUMAN')
     const event: TrustEvent = {
       counterpartyId,
       kind: 'clean',
