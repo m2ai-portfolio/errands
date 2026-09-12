@@ -1,0 +1,171 @@
+Errands offline run (demo mode, search: fixture)
+
+
+=== Errand 1/3 ===
+Request: Book dinner for 2 tonight at 7 PM at Bella Cucina in Nashville. If they are full, find somewhere comparable between 6:30 and 8:00 PM.
+
+I'll start by searching for Bella Cucina in Nashville right away!
+  ⏳ search_restaurants
+
+🔧 Tool #1: search_restaurants
+  · search "Bella Cucina Nashville" -> Bella Cucina
+✓ Tool completed
+Found Bella Cucina! Calling them now to book your table for 2.
+  ⏳ call_restaurant
+
+🔧 Tool #2: call_restaurant
+  · calling Bella Cucina (attempt 1, demo line)
+  · Bella Cucina: not booked
+✓ Tool completed
+Bella Cucina is fully booked tonight. Let me search for a comparable Italian restaurant in Nashville right away!
+  ⏳ search_restaurants
+
+🔧 Tool #3: search_restaurants
+  · search "italian restaurant Nashville" -> Trattoria Roma, Taco Town
+✓ Tool completed
+Found Trattoria Roma — also Italian, moderate price level, and highly rated (4.5 stars). Calling them now!
+  ⏳ call_restaurant
+
+🔧 Tool #4: call_restaurant
+  · calling Trattoria Roma (attempt 2, demo line)
+  · Trattoria Roma: booked 7:00 PM
+✓ Tool completed
+Trattoria Roma confirmed a table for 2 at 7:00 PM, but they require a **$15.00 deposit** to hold it. Processing that now!
+  ⏳ pay_deposit
+
+>>> DECISION NEEDED: Errands wants to spend $15.00 (restaurant_deposit) at Trattoria Roma. Approve?
+y  (offline runner)
+
+🔧 Tool #5: pay_deposit
+  · deposit succeeded: Trattoria Roma
+✓ Tool completed
+All done! Here's a summary:
+
+- **Restaurant:** Trattoria Roma *(Bella Cucina was fully booked)*
+- **Date & Time:** Tonight at 7:00 PM
+- **Party Size:** 2
+- **Confirmation Code:** TR-4821
+- **Deposit Paid:** $15.00
+
+To cancel, contact Trattoria Roma directly with confirmation code **TR-4821** — and note that the deposit may be non-refundable depending on their policy. Enjoy your dinner! 🍝
+
+
+=== Errand 2/3 ===
+Request: Find everything I'm paying for monthly and cancel Netflix.
+
+On it! Let me connect to your bank first.
+  ⏳ connect_bank
+
+🔧 Tool #6: connect_bank
+  · connected Demo Bank ****0000
+✓ Tool completed
+Connected! Now let me pull all your recurring charges.
+  ⏳ list_recurring
+
+🔧 Tool #7: list_recurring
+  · Planet Fitness: $24.99 monthly
+  · Netflix: $15.49 monthly
+  · Spotify: $11.99 monthly
+  · Clouddrive Plus: $9.99 monthly
+  · Coffee Club: $6.00 weekly
+✓ Tool completed
+Here are all your recurring charges:
+
+| Merchant | Amount | Cadence |
+|---|---|---|
+| Planet Fitness | $24.99 | Monthly |
+| Netflix | $15.49 | Monthly |
+| Spotify | $11.99 | Monthly |
+| Clouddrive Plus | $9.99 | Monthly |
+| Coffee Club | $6.00 | Weekly |
+
+You asked to cancel **Netflix** — calling them now to cancel your $15.49/month subscription!
+  ⏳ cancel_subscription
+
+>>> DECISION NEEDED: Errands wants to spend $0.00 (cancellation) at Netflix. $15.49 monthly, last charged 2026-08-16. Approve?
+y  (offline runner)
+
+🔧 Tool #8: cancel_subscription
+  · calling Netflix to cancel (call 1, demo switchboard)
+  · Netflix: cancelled CX-4471
+✓ Tool completed
+Done! Here's a summary of what was done:
+
+- ✅ **Netflix** ($15.49/month) — **Cancelled**
+  - Confirmation: **CX-4471**
+  - Effective: **End of your current billing period**
+
+Your other subscriptions (Planet Fitness, Spotify, Clouddrive Plus, Coffee Club) are untouched. Let me know if you'd like to cancel any of those too!
+
+
+=== Errand 3/3 ===
+Request: Get Blurr, my 2019 Corvette, an oil change this week and have someone take it there and back.
+
+On it! Let me find shops for an oil change and taskers for the drive at the same time!
+  ⏳ find_shops
+
+  ⏳ find_taskers
+
+🔧 Tool #9: find_shops
+  · shops for "oil change" -> Nashville Lube and Tire, Music City Auto Care
+
+🔧 Tool #10: find_taskers
+  · taskers for vehicle -> Dev K., Maria R., Lena P., Jules T., Sam O.
+✓ Tool completed
+✓ Tool completed
+Got shops and taskers! Booking Nashville Lube and Tire first, and since Dev K. isn't insured for vehicles, I'll start vetting Maria R. (4.9 stars, vehicle-insured) simultaneously!
+  ⏳ book_service
+
+  ⏳ vet_tasker
+
+🔧 Tool #11: book_service
+  · calling Nashville Lube and Tire (call 1, demo line)
+  · Nashville Lube and Tire: booked Tuesday 9:00 AM
+
+🔧 Tool #12: vet_tasker
+  · screening Maria R. (call 2, demo line)
+  · Maria R. screen: passed
+✓ Tool completed
+✓ Tool completed
+Shop is booked for **Tuesday 9:00 AM** and Maria R. passed her screen! Let me pay for the service and hire Maria at the same time!
+  ⏳ pay_service
+
+  ⏳ hire_tasker
+[second channel] Errands approval code 213911: $89.00 (service_booking) to Nashville Lube and Tire. First it called the shop, which quoted this amount. Reply in the Errands terminal with this code to approve, or ignore to decline.
+
+>>> DECISION NEEDED: Errands wants to spend $89.00 (service_booking) at Nashville Lube and Tire. Approve?
+213911  (offline runner)
+
+🔧 Tool #13: pay_service
+  · service payment succeeded: Nashville Lube and Tire
+
+>>> DECISION NEEDED: Errands wants to spend $38.00 (hire) at Maria R.. 4.9 stars, 212 jobs, background checked, insured for vehicles, screened by phone. This is the first time they would hold your property. Approve?
+y  (offline runner)
+
+🔧 Tool #14: hire_tasker
+  · hired Maria R. for any weekday this week
+✓ Tool completed
+✓ Tool completed
+Everything is locked in! Here's the full summary:
+
+- 🔧 **Shop:** Nashville Lube and Tire
+  - **Service:** Oil change for your 2019 Corvette (Blurr)
+  - **Slot:** Tuesday 9:00 AM
+  - **Confirmation:** NL-77
+  - **Cost:** $89.00
+
+- 🚗 **Driver:** Maria R. (4.9 ⭐, vehicle-insured, background checked)
+  - **Rate:** $38.00
+
+- 💰 **Total Cost:** $127.00
+
+**To cancel:**
+- **Shop appointment** — Contact Nashville Lube and Tire with confirmation **NL-77**
+- **Driver** — Cancel Maria R.'s hire through the task marketplace using tasker ID **maria-r**
+
+
+=== Ledger ===
+[{"merchant":"Bella Cucina","amountCents":0,"category":"call","at":"2026-09-12T20:28:59.493Z","approvedBy":"policy"},{"merchant":"Trattoria Roma","amountCents":0,"category":"call","at":"2026-09-12T20:29:03.639Z","approvedBy":"policy"},{"merchant":"Trattoria Roma","amountCents":1500,"category":"restaurant_deposit","at":"2026-09-12T20:29:05.623Z","approvedBy":"human"},{"merchant":"Netflix","amountCents":0,"category":"cancellation","at":"2026-09-12T20:29:13.835Z","approvedBy":"human"},{"merchant":"Netflix","amountCents":0,"category":"call","at":"2026-09-12T20:29:13.835Z","approvedBy":"policy"},{"merchant":"Nashville Lube and Tire","amountCents":0,"category":"call","at":"2026-09-12T20:29:21.844Z","approvedBy":"policy"},{"merchant":"Maria R.","amountCents":0,"category":"call","at":"2026-09-12T20:29:21.848Z","approvedBy":"policy"},{"merchant":"Nashville Lube and Tire","amountCents":8900,"category":"service_booking","at":"2026-09-12T20:29:24.206Z","approvedBy":"human"},{"merchant":"Maria R.","amountCents":3800,"category":"hire","counterpartyId":"maria-r","handover":true,"at":"2026-09-12T20:29:24.208Z","approvedBy":"human"}]
+
+=== Trust events ===
+[{"counterpartyId":"agent:restaurant_deposit","kind":"clean","detail":"restaurant_deposit","at":"2026-09-12T20:29:05.623Z"},{"counterpartyId":"agent:cancellation","kind":"clean","detail":"cancellation","at":"2026-09-12T20:29:13.835Z"},{"counterpartyId":"maria-r","kind":"clean","detail":"screened","at":"2026-09-12T20:29:21.849Z"},{"counterpartyId":"agent:service_booking","kind":"clean","detail":"service_booking","at":"2026-09-12T20:29:24.206Z"},{"counterpartyId":"maria-r","kind":"clean","detail":"handover","handover":true,"at":"2026-09-12T20:29:24.208Z"}]
