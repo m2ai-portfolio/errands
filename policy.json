@@ -1,12 +1,26 @@
 {
   "enabled": true,
-  "perTransactionCapCents": 2000,
-  "dailyCapCents": 2500,
-  "weeklyCapCents": 4000,
+  "perTransactionCapCents": 10000,
+  "dailyCapCents": 15000,
+  "weeklyCapCents": 25000,
   "approvalTtlMinutes": 30,
+  "stepUpCents": 5000,
+  "promoteAfter": 3,
+  "notifyCapCents": { "restaurant_deposit": 2500, "service_booking": 5000 },
+  "vetting": {
+    "minRating": 4.7,
+    "minJobs": 50,
+    "requireBackgroundCheck": true,
+    "requireInsuredFor": { "vehicle": true },
+    "phoneScreenRequired": true
+  },
+  "counterparties": {},
   "categories": {
     "call": "allow",
     "restaurant_deposit": "confirm",
+    "service_booking": "confirm",
+    "hire": "confirm",
+    "cancellation": "confirm",
     "gift": "forbid"
   }
 }

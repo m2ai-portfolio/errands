@@ -10,6 +10,11 @@
       "role": "open",
       "phoneNumberId": "<Vapi phone number id of the demo line that takes the booking>",
       "number": "+15025550101"
+    },
+    {
+      "role": "switchboard",
+      "phoneNumberId": "<Vapi phone number id of the switchboard demo line that plays any business the caller names>",
+      "number": "+15025550102"
     }
   ]
 }
