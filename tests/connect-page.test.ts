@@ -88,9 +88,29 @@ describe('serveConnectPage', () => {
 
   it('close() stops the server', async () => {
     const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
+    close = page.close
     const port = new URL(page.url).port
     await page.close()
     close = undefined
     await expect(fetch(`http://127.0.0.1:${port}/connect`)).rejects.toBeTruthy()
+  })
+
+  it('/done with malformed body rejects collect and returns 400', async () => {
+    const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
+    close = page.close
+    const port = new URL(page.url).port
+
+    const collected = page.collect('cs_1')
+    // Suppress the unhandled rejection warning by adding a catch handler
+    collected.catch(() => {})
+
+    const doneResponse = await fetch(`http://127.0.0.1:${port}/done`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not json',
+    })
+    expect(doneResponse.status).toBe(400)
+
+    await expect(collected).rejects.toThrow('CONNECT_BAD_DONE_BODY')
   })
 })

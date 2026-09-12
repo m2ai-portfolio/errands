@@ -106,8 +106,24 @@ export async function serveConnectPage(opts: ServeConnectPageOptions): Promise<C
 
       if (method === 'POST' && url === '/done') {
         try {
-          const body = (await readJsonBody(req)) as { accountIds?: string[] }
-          const accountIds = body.accountIds ?? []
+          const body = (await readJsonBody(req)) as { accountIds?: unknown }
+
+          // Validate accountIds is an array of strings
+          if (
+            !Array.isArray(body.accountIds) ||
+            !body.accountIds.every((id) => typeof id === 'string')
+          ) {
+            const reject = rejectPending
+            resolvePending = null
+            rejectPending = null
+            pendingClientSecret = null
+            if (reject) reject(new Error('CONNECT_BAD_DONE_BODY'))
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'BAD_DONE_BODY' }))
+            return
+          }
+
+          const accountIds = body.accountIds
           const resolve = resolvePending
           resolvePending = null
           rejectPending = null
@@ -116,6 +132,11 @@ export async function serveConnectPage(opts: ServeConnectPageOptions): Promise<C
           res.writeHead(200, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ ok: true }))
         } catch {
+          const reject = rejectPending
+          resolvePending = null
+          rejectPending = null
+          pendingClientSecret = null
+          if (reject) reject(new Error('CONNECT_BAD_DONE_BODY'))
           res.writeHead(400, { 'Content-Type': 'application/json' })
           res.end(JSON.stringify({ error: 'BAD_JSON' }))
         }
