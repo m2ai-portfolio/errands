@@ -46,8 +46,9 @@ export class SpendingGateIntervention extends InterventionHandler {
     try {
       if (!isObject(input)) throw new Error('not an object')
       mapped = toRequest(input)
-    } catch {
-      return InterventionActions.deny('Spending gate: SPEND_INPUT_INVALID')
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? `: ${err.message}` : ''
+      return InterventionActions.deny(`Spending gate: SPEND_INPUT_INVALID${detail}`)
     }
 
     const { evidence, triedFirst, ...request } = mapped

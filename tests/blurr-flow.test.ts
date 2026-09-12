@@ -137,7 +137,7 @@ describe('blurr errand: oil change plus a hired driver', () => {
 
     // An amount the shop never quoted dies in the mapper, before any human is asked.
     expect(await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 8000 })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: AMOUNT_NOT_QUOTED',
     })
     expect(h.prompts).toHaveLength(0)
 
@@ -156,7 +156,7 @@ describe('blurr errand: oil change plus a hired driver', () => {
 
     // Hiring an unscreened human is refused by the mapper, before the gate sees it.
     expect(await h.use('hire_tasker', { taskerId: 'maria-r' })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: NOT_SCREENED',
     })
 
     const taskers = (await h.use('find_taskers', { taskClass: 'vehicle' })) as { id: string }[]
@@ -169,7 +169,7 @@ describe('blurr errand: oil change plus a hired driver', () => {
     // A tasker who failed vetting on paper was never screened, so hiring them
     // is refused by the mapper before any human is asked.
     expect(await h.use('hire_tasker', { taskerId: 'dev-k' })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: NOT_SCREENED',
     })
 
     const maria = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
@@ -220,12 +220,16 @@ describe('blurr errand: oil change plus a hired driver', () => {
       },
     ])
 
-    // Spec: a human promotes after one clean job; the gate applies promoteAfter to humans until promoteHumanAfter lands (lane 1).
-    expect(h.gate.rungFor(HIRE_REQUEST)).toBe('screened')
+    // promoteHumanAfter: 1: a human promotes to proven after one clean job.
+    expect(h.gate.rungFor(HIRE_REQUEST)).toBe('proven')
     // The handover is no longer a first handover, which is the behavior change
-    // that matters. Evaluated two days out, since today's cap is spent.
-    const later = new Date('2026-09-14T15:00:00Z')
-    expect(h.gate.evaluate(HIRE_REQUEST, later).reason).toBe('CONFIRM_CATEGORY')
+    // that matters. Evaluated a day out, since today's cap is spent: a second
+    // hire of a proven person under notifyCapCents.hire (4500) runs as notify.
+    const later = new Date('2026-09-13T15:00:00Z')
+    expect(h.gate.evaluate(HIRE_REQUEST, later)).toMatchObject({
+      decision: 'notify',
+      reason: 'TRACK_RECORD',
+    })
 
     // No call ever carried a counterparty: calls are 0-cent, category "call", nothing more.
     for (const entry of ledger.filter((e) => e.category === 'call')) {
@@ -252,10 +256,10 @@ describe('blurr errand: oil change plus a hired driver', () => {
   it('refuses a shop or tasker it never found, and stops after three calls', async () => {
     const h = harness({ outcomes: [SERVICE, SCREEN, SCREEN] })
     expect(await h.use('book_service', { shopId: 'made-up', ...booking })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: UNKNOWN_SHOP',
     })
     expect(await h.use('vet_tasker', { taskerId: 'made-up', slot: 'Tuesday 8:00 AM' })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: UNKNOWN_TASKER',
     })
     await h.use('book_service', { shopId: 'nashville-lube', ...booking })
     await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
@@ -274,7 +278,7 @@ describe('blurr errand: oil change plus a hired driver', () => {
     const screened = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
     expect(screened).toMatchObject({ passed: false, failures: ['SCREEN_ANSWER_manual'] })
     expect(await h.use('hire_tasker', { taskerId: 'maria-r' })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: NOT_SCREENED',
     })
     expect(h.gate.rungFor(HIRE_REQUEST)).toBe('unknown')
   })
@@ -323,7 +327,7 @@ describe('blurr errand: oil change plus a hired driver', () => {
     // The mapper denies a second payment for the same shop before any human
     // is asked again, so the ledger and Stripe cannot disagree.
     expect(await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 8900 })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: ALREADY_PAID',
     })
     // Defense in depth: the handler itself refuses if ever reached directly.
     expect(await h.handlers.pay({ shopId: 'nashville-lube', amountCents: 8900 })).toEqual({
@@ -347,7 +351,7 @@ describe('blurr errand: oil change plus a hired driver', () => {
     expect(second).toMatchObject({ passed: false, failures: ['SCREEN_ANSWER_manual'] })
 
     expect(await h.use('hire_tasker', { taskerId: 'maria-r' })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: NOT_SCREENED',
     })
   })
 
@@ -359,7 +363,7 @@ describe('blurr errand: oil change plus a hired driver', () => {
     expect(second).toMatchObject({ booked: false })
 
     expect(await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 8900 })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: NO_QUOTE',
     })
   })
 })

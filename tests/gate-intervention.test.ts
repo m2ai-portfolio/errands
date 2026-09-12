@@ -94,7 +94,33 @@ describe('SpendingGateIntervention', () => {
     const action = await setup(true).intervention.beforeToolCall(
       eventFor('pay_deposit', 'fifteen dollars'),
     )
-    expect(action).toMatchObject({ type: 'deny', reason: 'Spending gate: SPEND_INPUT_INVALID' })
+    expect(action.type).toBe('deny')
+    expect((action as { reason: string }).reason).toMatch(/^Spending gate: SPEND_INPUT_INVALID/)
+  })
+
+  it('names the mapper refusal in the deny reason when the mapper throws an Error', async () => {
+    const tools = new Map<string, SpendInputMapper>([
+      [
+        'pay_deposit',
+        () => {
+          throw new Error('NOT_SCREENED')
+        },
+      ],
+    ])
+    const { gate } = setup(true)
+    const intervention = new SpendingGateIntervention(
+      gate,
+      tools,
+      askYes,
+      stepUpNever,
+      () => {},
+      () => t0,
+    )
+    const action = await intervention.beforeToolCall(eventFor('pay_deposit', deposit))
+    expect(action).toMatchObject({
+      type: 'deny',
+      reason: 'Spending gate: SPEND_INPUT_INVALID: NOT_SCREENED',
+    })
   })
 
   it('strips a model-supplied approval code on an allowed spend', async () => {

@@ -7,7 +7,7 @@
   "stepUpCents": 5000,
   "promoteAfter": 3,
   "promoteHumanAfter": 1,
-  "notifyCapCents": { "restaurant_deposit": 2500, "service_booking": 4500 },
+  "notifyCapCents": { "restaurant_deposit": 2500, "service_booking": 4500, "hire": 4500 },
   "vetting": {
     "minRating": 4.7,
     "minJobs": 50,
