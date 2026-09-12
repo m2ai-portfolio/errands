@@ -17,6 +17,17 @@ const policy: Policy = {
   dailyCapCents: 2500,
   weeklyCapCents: 4000,
   approvalTtlMinutes: 30,
+  stepUpCents: 5000,
+  promoteAfter: 3,
+  notifyCapCents: { restaurant_deposit: 2500 },
+  vetting: {
+    minRating: 4.7,
+    minJobs: 50,
+    requireBackgroundCheck: true,
+    requireInsuredFor: { vehicle: true },
+    phoneScreenRequired: true,
+  },
+  counterparties: {},
   categories: { call: 'allow', restaurant_deposit: 'confirm', gift: 'forbid' },
 }
 

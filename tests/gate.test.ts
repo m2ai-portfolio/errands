@@ -3,14 +3,26 @@ import { createGate, GateError, type Policy, type SpendRequest } from '../src/ga
 
 const policy: Policy = {
   enabled: true,
-  perTransactionCapCents: 2000,
-  dailyCapCents: 2500,
-  weeklyCapCents: 4000,
+  perTransactionCapCents: 10000,
+  dailyCapCents: 15000,
+  weeklyCapCents: 25000,
   approvalTtlMinutes: 30,
+  stepUpCents: 5000,
+  promoteAfter: 3,
+  notifyCapCents: { restaurant_deposit: 2500 },
+  vetting: {
+    minRating: 4.7,
+    minJobs: 50,
+    requireBackgroundCheck: true,
+    requireInsuredFor: { vehicle: true },
+    phoneScreenRequired: true,
+  },
+  counterparties: {},
   categories: {
     call: 'allow',
     restaurant_deposit: 'confirm',
     gift: 'forbid',
+    hire: 'confirm',
   },
 }
 
@@ -44,11 +56,11 @@ describe('evaluate', () => {
 
   it('asks the human before a deposit in a confirm category', () => {
     const result = createGate(policy).evaluate(deposit(), t0)
-    expect(result).toEqual({ decision: 'confirm', reason: 'CONFIRM_CATEGORY' })
+    expect(result).toMatchObject({ decision: 'confirm', reason: 'CONFIRM_CATEGORY' })
   })
 
   it('forbids a forbidden category', () => {
-    expect(createGate(policy).evaluate(deposit({ category: 'gift' }), t0)).toEqual({
+    expect(createGate(policy).evaluate(deposit({ category: 'gift' }), t0)).toMatchObject({
       decision: 'forbid',
       reason: 'CATEGORY_FORBIDDEN',
     })
@@ -68,7 +80,7 @@ describe('evaluate', () => {
   })
 
   it('forbids a single charge over the per-transaction cap', () => {
-    expect(createGate(policy).evaluate(deposit({ amountCents: 2001 }), t0).reason).toBe(
+    expect(createGate(policy).evaluate(deposit({ amountCents: 10001 }), t0).reason).toBe(
       'OVER_TRANSACTION_CAP',
     )
   })
@@ -82,20 +94,20 @@ describe('evaluate', () => {
 
   it('forbids a second charge that would break the rolling 24-hour cap', () => {
     const gate = createGate(policy)
-    const first = gate.requestApproval(deposit(), t0)
-    gate.commit(deposit(), t0, first.code)
-    expect(gate.evaluate(deposit({ amountCents: 1100 }), minutes(60)).reason).toBe('OVER_DAILY_CAP')
-    expect(gate.evaluate(deposit({ amountCents: 1000 }), minutes(60)).decision).toBe('confirm')
+    const first = gate.requestApproval(deposit({ amountCents: 9000 }), t0)
+    gate.commit(deposit({ amountCents: 9000 }), t0, first.code)
+    expect(gate.evaluate(deposit({ amountCents: 6001 }), minutes(60)).reason).toBe('OVER_DAILY_CAP')
+    expect(gate.evaluate(deposit({ amountCents: 6000 }), minutes(60)).decision).toBe('confirm')
   })
 
   it('counts only the last 7 days toward the weekly cap', () => {
     const gate = createGate(policy)
     for (const at of [t0, days(2)]) {
-      const approval = gate.requestApproval(deposit(), at)
-      gate.commit(deposit(), at, approval.code)
+      const approval = gate.requestApproval(deposit({ amountCents: 9000 }), at)
+      gate.commit(deposit({ amountCents: 9000 }), at, approval.code)
     }
-    expect(gate.evaluate(deposit({ amountCents: 1500 }), days(4)).reason).toBe('OVER_WEEKLY_CAP')
-    expect(gate.evaluate(deposit({ amountCents: 1500 }), days(7.1)).decision).toBe('confirm')
+    expect(gate.evaluate(deposit({ amountCents: 8000 }), days(4)).reason).toBe('OVER_WEEKLY_CAP')
+    expect(gate.evaluate(deposit({ amountCents: 8000 }), days(7.1)).decision).toBe('confirm')
   })
 })
 
@@ -156,10 +168,10 @@ describe('commit', () => {
 
   it('re-checks the caps at commit time, even with a valid code', () => {
     const gate = createGate(policy)
-    const early = gate.requestApproval(deposit(), t0)
-    const late = gate.requestApproval(deposit({ amountCents: 1100 }), t0)
-    gate.commit(deposit(), t0, early.code)
-    expect(reasonOf(() => gate.commit(deposit({ amountCents: 1100 }), t0, late.code))).toBe(
+    const early = gate.requestApproval(deposit({ amountCents: 9000 }), t0)
+    const late = gate.requestApproval(deposit({ amountCents: 6001 }), t0)
+    gate.commit(deposit({ amountCents: 9000 }), t0, early.code)
+    expect(reasonOf(() => gate.commit(deposit({ amountCents: 6001 }), t0, late.code))).toBe(
       'OVER_DAILY_CAP',
     )
   })
@@ -170,5 +182,100 @@ describe('commit', () => {
       'KILL_SWITCH',
     )
     expect(gate.ledger()).toHaveLength(0)
+  })
+})
+
+describe('trust ladder', () => {
+  const trusted: Policy = { ...policy, counterparties: { 'maria-r': { rung: 'trusted' } } }
+  const hire = (overrides: Partial<SpendRequest> = {}): SpendRequest => ({
+    merchant: 'Maria R.',
+    amountCents: 3800,
+    category: 'hire',
+    counterpartyId: 'maria-r',
+    ...overrides,
+  })
+
+  it('refuses to hire a human at rung unknown', () => {
+    expect(createGate(policy).evaluate(hire(), t0)).toMatchObject({
+      decision: 'forbid',
+      reason: 'COUNTERPARTY_UNKNOWN',
+      rung: 'unknown',
+    })
+  })
+
+  it('a first handover always asks, even for a trusted counterparty', () => {
+    const gate = createGate(trusted)
+    expect(gate.evaluate(hire({ handover: true }), t0)).toMatchObject({
+      decision: 'confirm',
+      reason: 'FIRST_HANDOVER',
+      rung: 'trusted',
+    })
+  })
+
+  it('a second handover after a clean one runs as notify when under the cap', () => {
+    const withCap: Policy = {
+      ...trusted,
+      notifyCapCents: { ...trusted.notifyCapCents, hire: 5000 },
+    }
+    const gate = createGate(withCap)
+    const code = gate.requestApproval(hire({ handover: true }), t0).code
+    gate.commit(hire({ handover: true }), minutes(1), code)
+    expect(gate.evaluate(hire({ handover: true }), days(1))).toMatchObject({
+      decision: 'notify',
+      reason: 'TRACK_RECORD',
+    })
+  })
+
+  it('the agent earns notify in a category after promoteAfter clean confirmed spends', () => {
+    const gate = createGate(policy)
+    for (let i = 0; i < 3; i += 1) {
+      const code = gate.requestApproval(deposit(), days(i)).code
+      gate.commit(deposit(), days(i), code)
+    }
+    const fourth = gate.evaluate(deposit(), days(3))
+    expect(fourth).toMatchObject({ decision: 'notify', reason: 'TRACK_RECORD', rung: 'proven' })
+    expect(gate.commit(deposit(), days(3)).approvedBy).toBe('track-record')
+  })
+
+  it('an incident resets the track record', () => {
+    const gate = createGate(policy)
+    for (let i = 0; i < 3; i += 1) {
+      const code = gate.requestApproval(deposit(), days(i)).code
+      gate.commit(deposit(), days(i), code)
+    }
+    gate.recordIncident('agent:restaurant_deposit', 'quoted amount mismatch', days(3))
+    expect(gate.evaluate(deposit(), days(4)).decision).toBe('confirm')
+  })
+
+  it('notify never applies above notifyCapCents', () => {
+    const gate = createGate(policy)
+    for (let i = 0; i < 3; i += 1) {
+      const code = gate.requestApproval(deposit(), days(i)).code
+      gate.commit(deposit(), days(i), code)
+    }
+    expect(gate.evaluate(deposit({ amountCents: 2600 }), days(3)).decision).toBe('confirm')
+  })
+
+  it('flags step-up at exactly stepUpCents and not below', () => {
+    expect(createGate(policy).evaluate(deposit({ amountCents: 5000 }), t0).stepUp).toBe(true)
+    expect(createGate(policy).evaluate(deposit({ amountCents: 4999 }), t0).stepUp).toBe(false)
+  })
+
+  it('binds an approval to the counterparty and handover flag', () => {
+    const gate = createGate(trusted)
+    const code = gate.requestApproval(hire({ handover: true }), t0).code
+    expect(reasonOf(() => gate.commit(hire({ handover: false }), minutes(1), code))).toBe(
+      'APPROVAL_INVALID',
+    )
+  })
+
+  it('recordScreened lifts a human from unknown to screened so a hire can be confirmed', () => {
+    const gate = createGate(policy)
+    gate.recordScreened('maria-r', t0)
+    expect(gate.evaluate(hire({ handover: true }), minutes(1))).toMatchObject({
+      decision: 'confirm',
+      reason: 'FIRST_HANDOVER',
+      rung: 'screened',
+    })
   })
 })
