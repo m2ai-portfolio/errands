@@ -2,12 +2,16 @@ import { readFileSync } from 'node:fs'
 import { stdin, stdout } from 'node:process'
 import { createErrandsAgent } from './agent.js'
 import { createAsk } from './ask.js'
-import { loadConfig } from './config.js'
+import { loadConfig, type ErrandsConfig } from './config.js'
+import { serveConnectPage, type ConnectPage } from './connect-page.js'
 import { dinnerErrand } from './errands/dinner.js'
+import { subscriptionsErrand } from './errands/subscriptions.js'
 import { createGate } from './gate.js'
 import { consoleStepUp, telegramStepUp } from './stepup.js'
+import { FixtureBank, StripeFinancialConnections, type BankSource } from './tools/bank.js'
 import { StripeTestDeposits } from './tools/deposit.js'
 import { placeCall, VapiClient, type VoiceConfig } from './tools/phone.js'
+import type { Transaction } from './tools/recurring.js'
 import {
   FixtureRestaurantSearch,
   GooglePlacesRestaurantSearch,
@@ -23,6 +27,48 @@ const DEFAULT_CALLER_VOICE: VoiceConfig = {
   provider: 'cartesia',
   model: 'sonic-3.5',
   voiceId: 'a167e0f3-df7e-4d52-a9c3-f949145efdab',
+}
+
+// Test-mode Stripe customer that owns the Financial Connections account. Created
+// once and echoed so it can be exported instead of piling up new customers.
+async function stripeCustomerId(secretKey: string, log: (line: string) => void): Promise<string> {
+  const existing = process.env.ERRANDS_STRIPE_CUSTOMER
+  if (existing) return existing
+  const response = await fetch('https://api.stripe.com/v1/customers', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ name: 'Errands demo' }),
+    signal: AbortSignal.timeout(20_000),
+  })
+  const json = (await response.json()) as { id?: string; error?: { code?: string } }
+  if (!response.ok || !json.id) throw new Error(`STRIPE_${json.error?.code ?? response.status}`)
+  log(`stripe customer ${json.id} (export ERRANDS_STRIPE_CUSTOMER=${json.id} to reuse it)`)
+  return json.id
+}
+
+async function buildBank(
+  config: ErrandsConfig,
+  log: (line: string) => void,
+): Promise<{ bank: BankSource; page: ConnectPage | null }> {
+  if (config.bankSource === 'fixture') {
+    const rows = JSON.parse(
+      readFileSync(new URL('../fixtures/transactions.json', import.meta.url), 'utf8'),
+    ) as Transaction[]
+    return { bank: new FixtureBank(rows), page: null }
+  }
+  const secretKey = process.env.STRIPE_SECRET_KEY ?? ''
+  const page = await serveConnectPage({
+    publishableKey: config.stripePublishableKey!,
+    host: config.lanHost,
+  })
+  const customerId = await stripeCustomerId(secretKey, log)
+  return {
+    bank: new StripeFinancialConnections({ secretKey, customerId, collect: page.collect }),
+    page,
+  }
 }
 
 async function main() {
@@ -61,9 +107,20 @@ async function main() {
     log,
   })
 
+  const { bank, page } = await buildBank(config, log)
+  const subscriptions = subscriptionsErrand({
+    config,
+    gate,
+    bank,
+    runCall,
+    voice,
+    log,
+    ...(page ? { connectUrl: page.url } : {}),
+  })
+
   const agent = createErrandsAgent(
     {
-      modules: [dinner],
+      modules: [dinner, subscriptions],
       gate,
       askHuman: createAsk(stdin, stdout),
       stepUp,
@@ -75,7 +132,11 @@ async function main() {
 
   stdout.write(`Errands (${config.mode} mode, search: ${search.source})\nRequest: ${request}\n\n`)
   // The SDK's default printer streams the agent's text and tool markers to stdout.
-  await agent.invoke(request)
+  try {
+    await agent.invoke(request)
+  } finally {
+    if (page) await page.close()
+  }
   stdout.write('\n')
 }
 
