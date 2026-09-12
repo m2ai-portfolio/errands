@@ -1,0 +1,48 @@
+Errands (demo mode, search: fixture)
+Request: Book dinner for 2 tonight at 7 PM at Bella Cucina in Nashville. If they are full, find somewhere comparable between 6:30 and 8:00 PM.
+
+I'll start by searching for Bella Cucina in Nashville and comparable Italian restaurants at the same time — then call Bella Cucina first!
+  ⏳ search_restaurants
+
+  ⏳ search_restaurants
+
+🔧 Tool #1: search_restaurants
+  · search "Bella Cucina Nashville" -> Bella Cucina
+
+🔧 Tool #2: search_restaurants
+  · search "Italian restaurant Nashville" -> Bella Cucina, Trattoria Roma, Taco Town
+✓ Tool completed
+✓ Tool completed
+Found Bella Cucina and a strong backup — Trattoria Roma (4.5 stars, moderate price, Italian). Calling Bella Cucina now!
+  ⏳ call_restaurant
+
+🔧 Tool #3: call_restaurant
+  · calling Bella Cucina (attempt 1, demo line)
+  · Bella Cucina: not booked
+✓ Tool completed
+Bella Cucina is fully booked tonight. Moving on to Trattoria Roma — same cuisine, similar price, great rating!
+  ⏳ call_restaurant
+
+🔧 Tool #4: call_restaurant
+  · calling Trattoria Roma (attempt 2, demo line)
+  · Trattoria Roma: booked 7 PM
+✓ Tool completed
+Trattoria Roma is booked! They require a $15.00 deposit. Submitting that now for approval.
+  ⏳ pay_deposit
+
+>>> DECISION NEEDED: Errands wants to spend $15.00 (restaurant_deposit) at Trattoria Roma. Approve? [y/N] 
+🔧 Tool #5: pay_deposit
+  · deposit succeeded: Trattoria Roma
+✓ Tool completed
+All sorted! Here's your summary:
+
+**🍝 Trattoria Roma** (Bella Cucina was fully booked tonight)
+- **Date/Time:** Tonight at 7:00 PM
+- **Party size:** 2
+- **Confirmation code:** TR-4821
+- **Deposit:** $15.00 — paid ✅
+- **To cancel:** Contact Trattoria Roma directly at 200 Demo Ave, Nashville, TN, referencing confirmation code **TR-4821**. Check with them about their cancellation/deposit refund policy.
+
+Enjoy your dinner, Alex!
+
+
