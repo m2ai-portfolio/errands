@@ -3,6 +3,7 @@ import { stdin, stdout } from 'node:process'
 import { createErrandsAgent } from './agent.js'
 import { createAsk } from './ask.js'
 import { loadConfig } from './config.js'
+import { blurrErrand, type Shop } from './errands/blurr.js'
 import { dinnerErrand } from './errands/dinner.js'
 import { createGate } from './gate.js'
 import { consoleStepUp, telegramStepUp } from './stepup.js'
@@ -13,6 +14,8 @@ import {
   GooglePlacesRestaurantSearch,
   type Restaurant,
 } from './tools/restaurants.js'
+import { FixtureTaskers } from './tools/taskers.js'
+import type { TaskerProfile } from './trust.js'
 
 // Usage: npm start -- "Dinner for 2 tonight at 7 at Bella Cucina in Nashville, or somewhere comparable"
 
@@ -33,6 +36,12 @@ async function main() {
   const fixtures = JSON.parse(
     readFileSync(new URL('../fixtures/restaurants.json', import.meta.url), 'utf8'),
   ) as Restaurant[]
+  const taskerFixtures = JSON.parse(
+    readFileSync(new URL('../fixtures/taskers.json', import.meta.url), 'utf8'),
+  ) as TaskerProfile[]
+  const shopFixtures = JSON.parse(
+    readFileSync(new URL('../fixtures/shops.json', import.meta.url), 'utf8'),
+  ) as Shop[]
   const search =
     config.searchSource === 'google-places' && config.googleApiKey
       ? new GooglePlacesRestaurantSearch(config.googleApiKey)
@@ -51,19 +60,31 @@ async function main() {
   const gate = createGate(config.policy)
   const runCall = ({ to, assistant }: { to: string; assistant: object }) =>
     placeCall({ client: vapi, phoneNumberId: config.outboundPhoneNumberId, to, assistant })
+  const deposits = new StripeTestDeposits(process.env.STRIPE_SECRET_KEY ?? '')
   const dinner = dinnerErrand({
     config,
     gate,
     search,
     runCall,
-    deposits: new StripeTestDeposits(process.env.STRIPE_SECRET_KEY ?? ''),
+    deposits,
     voice,
+    log,
+  })
+  const blurr = blurrErrand({
+    config,
+    gate,
+    taskers: new FixtureTaskers(taskerFixtures),
+    shops: shopFixtures,
+    runCall,
+    deposits,
+    voice,
+    vetting: config.policy.vetting,
     log,
   })
 
   const agent = createErrandsAgent(
     {
-      modules: [dinner],
+      modules: [dinner, blurr],
       gate,
       askHuman: createAsk(stdin, stdout),
       stepUp,
