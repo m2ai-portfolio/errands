@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildReservationAssistant,
+  CallOutcomeSchema,
+  demoLine,
+  parseOutcome,
   PhoneError,
   placeCall,
   resolveDestination,
@@ -56,6 +59,19 @@ describe('buildReservationAssistant', () => {
     expect(assistant.maxDurationSeconds).toBeLessThanOrEqual(300)
     expect(assistant.analysisPlan.structuredDataPlan.schema.required).toContain('booked')
   })
+
+  it('still produces the exact assistant shape after the assistantBase refactor', () => {
+    expect(assistant.name).toBe('Errands reservation call')
+    expect(assistant.model.model).toBe('claude-sonnet-4-6')
+    expect(assistant.model.provider).toBe('anthropic')
+    expect(assistant.analysisPlan.structuredDataPlan.schema.required).toEqual([
+      'booked',
+      'confirmedTime',
+      'confirmationCode',
+      'depositRequiredCents',
+      'notes',
+    ])
+  })
 })
 
 describe('placeCall', () => {
@@ -80,7 +96,7 @@ describe('placeCall', () => {
 
   const noSleep = async () => {}
 
-  it('creates the call, polls until it ends, and returns the parsed outcome', async () => {
+  it('creates the call, polls until it ends, and returns the raw structured data', async () => {
     const outcome = {
       booked: false,
       confirmedTime: null,
@@ -100,7 +116,7 @@ describe('placeCall', () => {
       callId: 'call-1',
       endedReason: 'assistant-ended-call',
       summary: 'Fully booked.',
-      outcome,
+      structuredData: outcome,
     })
     expect(requests[0]?.url).toBe(`${VAPI_BASE}/call`)
     expect(JSON.parse(String(requests[0]?.init.body))).toEqual({
@@ -114,7 +130,7 @@ describe('placeCall', () => {
     expect(requests).toHaveLength(4)
   })
 
-  it('accepts the real Vapi shape, which omits fields that have no value', async () => {
+  it('passes through the real Vapi shape, which omits fields that have no value, for the caller to parse', async () => {
     // Recorded from live call 01a092eb on 2026-09-11 against the demo "full" line.
     const notes =
       'The restaurant is fully booked tonight and could not accommodate the reservation.'
@@ -126,7 +142,8 @@ describe('placeCall', () => {
       assistant: {},
       sleep: noSleep,
     })
-    expect(result.outcome).toEqual({
+    expect(result.structuredData).toEqual({ notes, booked: false, depositRequiredCents: 0 })
+    expect(parseOutcome(CallOutcomeSchema, result.structuredData)).toEqual({
       booked: false,
       confirmedTime: null,
       confirmationCode: null,
@@ -135,7 +152,7 @@ describe('placeCall', () => {
     })
   })
 
-  it('returns a null outcome when the call analysis is malformed', async () => {
+  it('leaves malformed call analysis for parseOutcome to reject', async () => {
     const { client } = fakeVapi(['ended'], { booked: 'maybe' })
     const result = await placeCall({
       client,
@@ -144,7 +161,22 @@ describe('placeCall', () => {
       assistant: {},
       sleep: noSleep,
     })
-    expect(result.outcome).toBeNull()
+    expect(result.structuredData).toEqual({ booked: 'maybe' })
+    expect(parseOutcome(CallOutcomeSchema, result.structuredData)).toBeNull()
+  })
+
+  it('placeCall returns the raw structured data and does not parse it', async () => {
+    const { client } = fakeVapi(['ended'], { anything: 1 })
+    const result = await placeCall({
+      client,
+      phoneNumberId: 'pn',
+      to: '+15025550100',
+      assistant: {},
+      pollMs: 0,
+      sleep: async () => {},
+    })
+    expect(result.structuredData).toEqual({ anything: 1 })
+    expect('outcome' in result).toBe(false)
   })
 
   it('gives up after the timeout instead of waiting forever', async () => {
@@ -160,5 +192,22 @@ describe('placeCall', () => {
         timeoutMs: 30,
       }),
     ).rejects.toThrow('CALL_TIMEOUT')
+  })
+})
+
+describe('parseOutcome', () => {
+  it('returns null on schema mismatch', () => {
+    expect(parseOutcome(CallOutcomeSchema, { nope: true })).toBeNull()
+    expect(parseOutcome(CallOutcomeSchema, { booked: true })?.depositRequiredCents).toBe(0)
+  })
+})
+
+describe('demoLine', () => {
+  it('returns the given line in demo mode and enforces the allowlist in live mode', () => {
+    expect(demoLine({ mode: 'demo', lines: [] }, '+15025550102')).toBe('+15025550102')
+    expect(() => demoLine({ mode: 'demo', lines: [] }, null)).toThrow('NO_DEMO_LINES')
+    expect(() => demoLine({ mode: 'live', allowlist: [] }, '+16155550100')).toThrow(
+      'DESTINATION_NOT_ALLOWED',
+    )
   })
 })

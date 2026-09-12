@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 // Outbound phone calls through Vapi. The Strands agent decides WHEN to call;
 // this module decides WHERE a call may go. In demo mode every call is routed to
-// test lines Matthew controls, so a real business is never dialed. In live mode
+// test lines we control, so a real business is never dialed. In live mode
 // only numbers on an explicit allowlist can be called.
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>
@@ -45,6 +45,19 @@ export function resolveDestination(
   return e164
 }
 
+// For a caller that targets one specific demo line (the switchboard) rather
+// than the attempt-indexed rotation resolveDestination uses.
+export function demoLine(policy: DestinationPolicy, number: string | null): string {
+  if (policy.mode === 'demo') {
+    if (!number) throw new PhoneError('NO_DEMO_LINES')
+    return number
+  }
+  const e164 = number ? toE164(number) : null
+  if (!e164) throw new PhoneError('NO_VALID_NUMBER')
+  if (!policy.allowlist.includes(e164)) throw new PhoneError('DESTINATION_NOT_ALLOWED')
+  return e164
+}
+
 export interface ReservationRequest {
   restaurantName: string
   customerName: string
@@ -79,6 +92,13 @@ export const CallOutcomeSchema = z.object({
 })
 export type CallOutcome = z.infer<typeof CallOutcomeSchema>
 
+// safeParse wrapper: callers own the schema for their own call type, this
+// module never has to know what shape a given script expects back.
+export function parseOutcome<T>(schema: z.ZodType<T>, data: unknown): T | null {
+  const parsed = schema.safeParse(data)
+  return parsed.success ? parsed.data : null
+}
+
 const outcomeJsonSchema = {
   type: 'object',
   properties: {
@@ -103,18 +123,18 @@ export interface VoiceConfig {
   [key: string]: unknown
 }
 
-export function buildReservationAssistant(req: ReservationRequest, voice: VoiceConfig) {
-  const system = [
-    `You are Errands, an AI assistant phoning ${req.restaurantName} on behalf of ${req.customerName}.`,
-    'At the very start, say you are an AI assistant calling to make a dinner reservation.',
-    `Ask for a table for ${req.partySize} at ${req.time}. Acceptable flexibility: ${req.flexibility}.`,
-    'If that time is unavailable, ask for the closest time within the flexibility. If nothing works, thank them and end the call politely.',
-    'If they require a deposit or card to hold the table, ask the amount, say your client will confirm and pay through a link, and do NOT agree to pay.',
-    'Never give out any card, account or personal details beyond the name for the booking.',
-    'Before ending, repeat back the time, party size and confirmation number or name. Keep the call under two minutes.',
-  ].join('\n')
+// Shared Vapi assistant body. Every call script (reservations today, others
+// later) builds its own system prompt and structured-data schema, then hands
+// both to this function so the Vapi client itself never needs to change when
+// a new call script is added.
+export function assistantBase<S extends object>(
+  name: string,
+  system: string,
+  voice: VoiceConfig,
+  schema: S,
+) {
   return {
-    name: 'Errands reservation call',
+    name,
     firstMessageMode: 'assistant-waits-for-user' as const,
     maxDurationSeconds: 240,
     model: {
@@ -125,10 +145,23 @@ export function buildReservationAssistant(req: ReservationRequest, voice: VoiceC
     voice,
     endCallPhrases: ['goodbye', 'have a great night', 'have a good night'],
     analysisPlan: {
-      structuredDataPlan: { enabled: true, schema: outcomeJsonSchema },
+      structuredDataPlan: { enabled: true, schema },
       successEvaluationPlan: { enabled: true, rubric: 'PassFail' },
     },
   }
+}
+
+export function buildReservationAssistant(req: ReservationRequest, voice: VoiceConfig) {
+  const system = [
+    `You are Errands, an AI assistant phoning ${req.restaurantName} on behalf of ${req.customerName}.`,
+    'At the very start, say you are an AI assistant calling to make a dinner reservation.',
+    `Ask for a table for ${req.partySize} at ${req.time}. Acceptable flexibility: ${req.flexibility}.`,
+    'If that time is unavailable, ask for the closest time within the flexibility. If nothing works, thank them and end the call politely.',
+    'If they require a deposit or card to hold the table, ask the amount, say your client will confirm and pay through a link, and do NOT agree to pay.',
+    'Never give out any card, account or personal details beyond the name for the booking.',
+    'Before ending, repeat back the time, party size and confirmation number or name. Keep the call under two minutes.',
+  ].join('\n')
+  return assistantBase('Errands reservation call', system, voice, outcomeJsonSchema)
 }
 
 interface VapiCall {
@@ -170,7 +203,7 @@ export interface CallResult {
   callId: string
   endedReason: string | null
   summary: string | null
-  outcome: CallOutcome | null
+  structuredData: unknown
 }
 
 export interface PlaceCallOptions {
@@ -194,12 +227,11 @@ export async function placeCall(options: PlaceCallOptions): Promise<CallResult> 
   for (let waited = 0; waited <= timeoutMs; waited += pollMs) {
     const call = await client.getCall(created.id)
     if (call.status === 'ended') {
-      const parsed = CallOutcomeSchema.safeParse(call.analysis?.structuredData)
       return {
         callId: created.id,
         endedReason: call.endedReason ?? null,
         summary: call.analysis?.summary ?? null,
-        outcome: parsed.success ? parsed.data : null,
+        structuredData: call.analysis?.structuredData ?? null,
       }
     }
     await sleep(pollMs)

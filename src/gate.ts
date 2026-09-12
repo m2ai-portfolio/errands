@@ -1,4 +1,12 @@
 import { randomInt } from 'node:crypto'
+import {
+  agentCounterparty,
+  rungOf,
+  type CounterpartyGrant,
+  type Rung,
+  type TrustEvent,
+  type VettingPolicy,
+} from './trust.js'
 
 // The spending gate is deterministic code, not a prompt. Every money-moving tool
 // call is checked here, and a human-issued approval code is required for any
@@ -12,6 +20,12 @@ export interface Policy {
   dailyCapCents: number
   weeklyCapCents: number
   approvalTtlMinutes: number
+  stepUpCents: number
+  promoteAfter: number
+  promoteHumanAfter: number
+  notifyCapCents: Record<string, number>
+  vetting: VettingPolicy
+  counterparties: Record<string, CounterpartyGrant>
   categories: Record<string, CategoryMode>
 }
 
@@ -19,18 +33,23 @@ export interface SpendRequest {
   merchant: string
   amountCents: number
   category: string
+  counterpartyId?: string
+  handover?: boolean
 }
 
 export interface LedgerEntry extends SpendRequest {
   at: string
-  approvedBy: 'policy' | 'human'
+  approvedBy: 'policy' | 'human' | 'track-record'
 }
 
-export type Decision = 'allow' | 'confirm' | 'forbid'
+export type Decision = 'allow' | 'notify' | 'confirm' | 'forbid'
 
 export type GateReason =
   | 'ALLOW_CATEGORY'
   | 'CONFIRM_CATEGORY'
+  | 'TRACK_RECORD'
+  | 'FIRST_HANDOVER'
+  | 'COUNTERPARTY_UNKNOWN'
   | 'KILL_SWITCH'
   | 'INVALID_AMOUNT'
   | 'UNKNOWN_CATEGORY'
@@ -46,10 +65,13 @@ export type GateErrorReason =
   | 'APPROVAL_INVALID'
   | 'APPROVAL_EXPIRED'
   | 'APPROVAL_USED'
+  | 'NOT_A_HUMAN'
 
 export interface Evaluation {
   decision: Decision
   reason: GateReason
+  stepUp: boolean
+  rung: Rung
 }
 
 export interface Approval {
@@ -72,8 +94,16 @@ interface PendingApproval {
   used: boolean
 }
 
-export function createGate(policy: Policy, initialLedger: readonly LedgerEntry[] = []) {
+const counterpartyOf = (request: SpendRequest): string =>
+  request.counterpartyId ?? agentCounterparty(request.category)
+
+export function createGate(
+  policy: Policy,
+  initialLedger: readonly LedgerEntry[] = [],
+  initialEvents: readonly TrustEvent[] = [],
+) {
   const entries: LedgerEntry[] = [...initialLedger]
+  const events: TrustEvent[] = [...initialEvents]
   const approvals = new Map<string, PendingApproval>()
 
   const spentWithin = (now: Date, windowMs: number): number =>
@@ -84,9 +114,26 @@ export function createGate(policy: Policy, initialLedger: readonly LedgerEntry[]
       })
       .reduce((sum, entry) => sum + entry.amountCents, 0)
 
-  const forbid = (reason: GateReason): Evaluation => ({ decision: 'forbid', reason })
+  const rungFor = (request: SpendRequest): Rung =>
+    rungOf(
+      counterpartyOf(request),
+      policy.counterparties,
+      events,
+      request.counterpartyId ? policy.promoteHumanAfter : policy.promoteAfter,
+      request.counterpartyId ? 'unknown' : 'screened',
+    )
+
+  const hadCleanHandover = (id: string): boolean =>
+    events.some((e) => e.counterpartyId === id && e.kind === 'clean' && e.handover === true)
 
   function evaluate(request: SpendRequest, now: Date): Evaluation {
+    const rung = rungFor(request)
+    const forbid = (reason: GateReason): Evaluation => ({
+      decision: 'forbid',
+      reason,
+      stepUp: false,
+      rung,
+    })
     if (!policy.enabled) return forbid('KILL_SWITCH')
     const { amountCents, category } = request
     if (!Number.isInteger(amountCents) || amountCents < 0) return forbid('INVALID_AMOUNT')
@@ -101,15 +148,29 @@ export function createGate(policy: Policy, initialLedger: readonly LedgerEntry[]
     if (spentWithin(now, 7 * DAY_MS) + amountCents > policy.weeklyCapCents) {
       return forbid('OVER_WEEKLY_CAP')
     }
-    return mode === 'confirm'
-      ? { decision: 'confirm', reason: 'CONFIRM_CATEGORY' }
-      : { decision: 'allow', reason: 'ALLOW_CATEGORY' }
+    if (request.counterpartyId && rung === 'unknown') return forbid('COUNTERPARTY_UNKNOWN')
+    const stepUp = amountCents >= policy.stepUpCents
+    if (request.handover && !hadCleanHandover(counterpartyOf(request))) {
+      return { decision: 'confirm', reason: 'FIRST_HANDOVER', stepUp, rung }
+    }
+    if (mode === 'allow')
+      return { decision: 'allow', reason: 'ALLOW_CATEGORY', stepUp: false, rung }
+    const notifyCap = policy.notifyCapCents[category] ?? 0
+    if (
+      notifyCap > 0 &&
+      amountCents <= notifyCap &&
+      amountCents < policy.stepUpCents &&
+      (rung === 'proven' || rung === 'trusted')
+    ) {
+      return { decision: 'notify', reason: 'TRACK_RECORD', stepUp: false, rung }
+    }
+    return { decision: 'confirm', reason: 'CONFIRM_CATEGORY', stepUp, rung }
   }
 
   function requestApproval(request: SpendRequest, now: Date): Approval {
     const evaluation = evaluate(request, now)
     if (evaluation.decision === 'forbid') throw new GateError(evaluation.reason)
-    if (evaluation.decision === 'allow') throw new GateError('NOT_CONFIRMABLE')
+    if (evaluation.decision !== 'confirm') throw new GateError('NOT_CONFIRMABLE')
     let code: string
     do code = randomInt(0, 1_000_000).toString().padStart(6, '0')
     while (approvals.has(code))
@@ -127,7 +188,9 @@ export function createGate(policy: Policy, initialLedger: readonly LedgerEntry[]
     if (
       bound.merchant !== request.merchant ||
       bound.amountCents !== request.amountCents ||
-      bound.category !== request.category
+      bound.category !== request.category ||
+      (bound.counterpartyId ?? null) !== (request.counterpartyId ?? null) ||
+      Boolean(bound.handover) !== Boolean(request.handover)
     ) {
       throw new GateError('APPROVAL_INVALID')
     }
@@ -146,18 +209,51 @@ export function createGate(policy: Policy, initialLedger: readonly LedgerEntry[]
       merchant: request.merchant,
       amountCents: request.amountCents,
       category: request.category,
+      ...(request.counterpartyId ? { counterpartyId: request.counterpartyId } : {}),
+      ...(request.handover ? { handover: true } : {}),
       at: now.toISOString(),
-      approvedBy: pending ? 'human' : 'policy',
+      approvedBy: pending ? 'human' : evaluation.decision === 'notify' ? 'track-record' : 'policy',
     }
     entries.push(entry)
+    if (evaluation.decision !== 'allow') {
+      events.push({
+        counterpartyId: counterpartyOf(request),
+        kind: 'clean',
+        detail: request.handover ? 'handover' : request.category,
+        ...(request.handover ? { handover: true } : {}),
+        at: now.toISOString(),
+      })
+    }
     return entry
+  }
+
+  function recordIncident(counterpartyId: string, detail: string, now: Date): TrustEvent {
+    const event: TrustEvent = { counterpartyId, kind: 'incident', detail, at: now.toISOString() }
+    events.push(event)
+    return event
+  }
+
+  function recordScreened(counterpartyId: string, now: Date): TrustEvent {
+    if (counterpartyId.startsWith('agent:')) throw new GateError('NOT_A_HUMAN')
+    const event: TrustEvent = {
+      counterpartyId,
+      kind: 'clean',
+      detail: 'screened',
+      at: now.toISOString(),
+    }
+    events.push(event)
+    return event
   }
 
   return {
     evaluate,
     requestApproval,
     commit,
+    recordIncident,
+    recordScreened,
+    rungFor,
     ledger: (): readonly LedgerEntry[] => [...entries],
+    events: (): readonly TrustEvent[] => [...events],
   }
 }
 

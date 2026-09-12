@@ -56,7 +56,7 @@ type GateRequest =
 
 The ledger gains a `trustEvents` table: `{ counterpartyId, kind: 'clean' | 'incident', detail, at }`. Promotion and demotion are deterministic functions of the events:
 
-- `screened -> proven`: `promoteAfter` consecutive `clean` events (default 3 for AI categories, 1 completed job for a human).
+- `screened -> proven`: `promoteAfter` consecutive `clean` events for an AI category (default 3), or `promoteHumanAfter` consecutive `clean` events for a human (default 1, i.e. one completed job).
 - Any `incident` (dispute, no-show, quoted amount mismatch, human declined after vetting) drops the counterparty one rung and resets the clean count.
 - `trusted` is only set by hand in policy.json and is never granted by promotion.
 
@@ -67,8 +67,7 @@ The ledger gains a `trustEvents` table: `{ counterpartyId, kind: 'clean' | 'inci
   "minRating": 4.7,
   "minJobs": 50,
   "requireBackgroundCheck": true,
-  "requireInsuredFor": { "vehicle": true },
-  "phoneScreenRequired": true
+  "requireInsuredFor": { "vehicle": true }
 }
 ```
 
@@ -84,11 +83,12 @@ The ledger gains a `trustEvents` table: `{ counterpartyId, kind: 'clean' | 'inci
 {
   "enabled": true,
   "perTransactionCapCents": 10000,
-  "dailyCapCents": 15000,
+  "dailyCapCents": 20000,
   "weeklyCapCents": 25000,
   "approvalTtlMinutes": 30,
   "stepUpCents": 5000,
   "promoteAfter": 3,
+  "promoteHumanAfter": 1,
   "categories": {
     "call": "allow",
     "restaurant_deposit": "confirm",
@@ -97,7 +97,7 @@ The ledger gains a `trustEvents` table: `{ counterpartyId, kind: 'clean' | 'inci
     "cancellation": "confirm",
     "gift": "forbid"
   },
-  "notifyCapCents": { "restaurant_deposit": 2500, "service_booking": 5000 },
+  "notifyCapCents": { "restaurant_deposit": 2500, "service_booking": 4500 },
   "vetting": { "...": "as above" },
   "counterparties": {
     "maria-r": { "rung": "trusted", "note": "picked up Blurr twice" }
@@ -105,7 +105,7 @@ The ledger gains a `trustEvents` table: `{ counterpartyId, kind: 'clean' | 'inci
 }
 ```
 
-Caps rise from the current $20 because the demo spends up to $38 (Tasker) and a $50+ step-up must be reachable.
+Every notify cap must be below `stepUpCents`; the config loader rejects a policy where it is not. Caps rise from the current $20 because the demo spends up to $38 (Tasker) and a $50+ step-up must be reachable.
 
 ### Files
 

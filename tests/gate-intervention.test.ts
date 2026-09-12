@@ -1,15 +1,37 @@
 import type { BeforeToolCallEvent } from '@strands-agents/sdk'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createGate, type Policy, type SpendRequest } from '../src/gate.js'
-import { SpendingGateIntervention, type SpendInputMapper } from '../src/gate-intervention.js'
+import {
+  SpendingGateIntervention,
+  type AskHuman,
+  type SpendInputMapper,
+} from '../src/gate-intervention.js'
+import type { StepUpChannel } from '../src/stepup.js'
 
 const policy: Policy = {
   enabled: true,
-  perTransactionCapCents: 2000,
-  dailyCapCents: 2500,
-  weeklyCapCents: 4000,
+  perTransactionCapCents: 10000,
+  dailyCapCents: 20000,
+  weeklyCapCents: 40000,
   approvalTtlMinutes: 30,
-  categories: { call: 'allow', restaurant_deposit: 'confirm', gift: 'forbid' },
+  stepUpCents: 5000,
+  promoteAfter: 3,
+  promoteHumanAfter: 1,
+  notifyCapCents: { restaurant_deposit: 2500 },
+  vetting: {
+    minRating: 4.7,
+    minJobs: 50,
+    requireBackgroundCheck: true,
+    requireInsuredFor: { vehicle: true },
+  },
+  counterparties: {},
+  categories: {
+    call: 'allow',
+    restaurant_deposit: 'confirm',
+    gift: 'forbid',
+    hire: 'confirm',
+    cancellation: 'confirm',
+  },
 }
 const t0 = new Date('2026-09-12T18:00:00Z')
 
@@ -26,9 +48,15 @@ function eventFor(name: string, input: unknown): BeforeToolCallEvent {
   return { toolUse: { name, toolUseId: 'tool-1', input } } as unknown as BeforeToolCallEvent
 }
 
+const askYes: AskHuman = async () => true
+const askNever: AskHuman = async () => false
+const stepUpNever: StepUpChannel = async () => {}
+const event = eventFor
+
 function setup(answer: boolean, p: Policy = policy) {
   const gate = createGate(p)
   const prompts: string[] = []
+  const notes: string[] = []
   const intervention = new SpendingGateIntervention(
     gate,
     spendTools,
@@ -36,12 +64,15 @@ function setup(answer: boolean, p: Policy = policy) {
       prompts.push(prompt)
       return answer
     },
+    stepUpNever,
+    (l) => notes.push(l),
     () => t0,
   )
-  return { gate, prompts, intervention }
+  return { gate, prompts, notes, intervention }
 }
 
 const deposit = { merchant: 'Bella Cucina', amountCents: 1500, category: 'restaurant_deposit' }
+const depositEvent = (amountCents: number) => eventFor('pay_deposit', { ...deposit, amountCents })
 
 describe('SpendingGateIntervention', () => {
   it('fails closed if the intervention itself throws', () => {
@@ -68,7 +99,33 @@ describe('SpendingGateIntervention', () => {
     const action = await setup(true).intervention.beforeToolCall(
       eventFor('pay_deposit', 'fifteen dollars'),
     )
-    expect(action).toMatchObject({ type: 'deny', reason: 'Spending gate: SPEND_INPUT_INVALID' })
+    expect(action.type).toBe('deny')
+    expect((action as { reason: string }).reason).toMatch(/^Spending gate: SPEND_INPUT_INVALID/)
+  })
+
+  it('names the mapper refusal in the deny reason when the mapper throws an Error', async () => {
+    const tools = new Map<string, SpendInputMapper>([
+      [
+        'pay_deposit',
+        () => {
+          throw new Error('NOT_SCREENED')
+        },
+      ],
+    ])
+    const { gate } = setup(true)
+    const intervention = new SpendingGateIntervention(
+      gate,
+      tools,
+      askYes,
+      stepUpNever,
+      () => {},
+      () => t0,
+    )
+    const action = await intervention.beforeToolCall(eventFor('pay_deposit', deposit))
+    expect(action).toMatchObject({
+      type: 'deny',
+      reason: 'Spending gate: SPEND_INPUT_INVALID: NOT_SCREENED',
+    })
   })
 
   it('strips a model-supplied approval code on an allowed spend', async () => {
@@ -90,7 +147,7 @@ describe('SpendingGateIntervention', () => {
     const event = eventFor('pay_deposit', { ...deposit, approvalCode: '000000' })
     const action = await intervention.beforeToolCall(event)
     expect(prompts).toEqual([
-      'Errands wants to spend $15.00 (restaurant_deposit) at Bella Cucina. Approve?',
+      'Errands wants to spend $15.00 (restaurant deposit) at Bella Cucina. Approve?',
     ])
     expect(action.type).toBe('transform')
     if (action.type === 'transform') action.apply(event)
@@ -113,5 +170,229 @@ describe('SpendingGateIntervention', () => {
       eventFor('pay_deposit', { ...deposit, category: 'call', amountCents: 0 }),
     )
     expect(action).toMatchObject({ type: 'deny', reason: 'Spending gate: KILL_SWITCH' })
+  })
+
+  it('lets a notify decision through with no code and tells the human afterwards', async () => {
+    // gate with proven agent in restaurant_deposit: pre-seed three clean events
+    const events = [0, 1, 2].map((i) => ({
+      counterpartyId: 'agent:restaurant_deposit',
+      kind: 'clean' as const,
+      detail: 'restaurant_deposit',
+      at: new Date(t0.getTime() - (3 - i) * 3600_000).toISOString(),
+    }))
+    const gate = createGate(policy, [], events)
+    const notes: string[] = []
+    const intervention = new SpendingGateIntervention(
+      gate,
+      spendTools,
+      askNever,
+      stepUpNever,
+      (l) => notes.push(l),
+      () => t0,
+    )
+    const action = await intervention.beforeToolCall(depositEvent(1500))
+    expect(action.type).toBe('transform')
+    expect(notes[0]).toMatch(/track record/i)
+    expect(notes[0]).toContain('(restaurant deposit)')
+    expect(notes[0]).not.toContain('restaurant_deposit')
+  })
+
+  it('delivers the code out of band and requires the human to type it at or above stepUpCents', async () => {
+    const delivered: string[] = []
+    const stepUp = async (code: string) => {
+      delivered.push(code)
+    }
+    const ask = vi.fn(
+      async (_p: string, o?: { expectCode?: string }) => o?.expectCode === delivered[0],
+    )
+    const gate = createGate(policy)
+    const intervention = new SpendingGateIntervention(
+      gate,
+      spendTools,
+      ask,
+      stepUp,
+      () => {},
+      () => t0,
+    )
+    const action = await intervention.beforeToolCall(depositEvent(5000))
+    expect(delivered).toHaveLength(1)
+    expect(ask.mock.calls[0]?.[1]).toEqual({ expectCode: delivered[0] })
+    expect(action.type).toBe('transform')
+  })
+
+  it('denies and records nothing when the human types the wrong step-up code', async () => {
+    const delivered: string[] = []
+    const stepUp = async (code: string) => {
+      delivered.push(code)
+    }
+    const ask = vi.fn(async (_p: string, o?: { expectCode?: string }) => o?.expectCode === 'wrong')
+    const gate = createGate(policy)
+    const intervention = new SpendingGateIntervention(
+      gate,
+      spendTools,
+      ask,
+      stepUp,
+      () => {},
+      () => t0,
+    )
+    const action = await intervention.beforeToolCall(depositEvent(5000))
+    expect(action).toMatchObject({ type: 'deny', reason: 'Spending gate: HUMAN_DECLINED' })
+    expect(gate.ledger()).toHaveLength(0)
+  })
+
+  it('does not deliver a code out of band below stepUpCents', async () => {
+    const delivered: string[] = []
+    const intervention = new SpendingGateIntervention(
+      createGate(policy),
+      spendTools,
+      askYes,
+      async (c) => {
+        delivered.push(c)
+      },
+      () => {},
+      () => t0,
+    )
+    await intervention.beforeToolCall(depositEvent(1500))
+    expect(delivered).toHaveLength(0)
+  })
+
+  it('sanitizes the merchant name in the prompt and never shows $0.00 for a cancellation', async () => {
+    // A bank card descriptor is data the merchant controls. This one carries
+    // CSI sequences that erase and rewrite the two lines the human is reading.
+    const hostile = 'NETFLIX\u001b[2K\u001b[1A\u001b[2Kalready cancelled, approve to confirm'
+    const prompts: string[] = []
+    const tools = new Map<string, SpendInputMapper>([
+      [
+        'cancel_subscription',
+        () => ({
+          merchant: hostile,
+          amountCents: 0,
+          category: 'cancellation',
+          evidence: 'seen on the last 3 statements',
+        }),
+      ],
+    ])
+    const gate = createGate({
+      ...policy,
+      categories: { ...policy.categories, cancellation: 'confirm' },
+    })
+    const intervention = new SpendingGateIntervention(
+      gate,
+      tools,
+      async (p) => {
+        prompts.push(p)
+        return true
+      },
+      stepUpNever,
+      () => {},
+      () => t0,
+    )
+    await intervention.beforeToolCall(event('cancel_subscription', { merchant: hostile }))
+
+    const prompt = prompts[0] ?? ''
+    expect(prompt).not.toContain('\u001b')
+    expect(prompt).not.toContain('$0.00')
+    expect(prompt).not.toContain('(cancellation)')
+    expect(prompt).toBe(
+      'Errands wants to cancel your NETFLIX[2K[1A[2Kalready cancelled, approve to confirm' +
+        ' subscription. seen on the last 3 statements. Approve?',
+    )
+  })
+
+  it('ends a hire prompt for "Maria R." with a single period', async () => {
+    const prompts: string[] = []
+    const tools = new Map<string, SpendInputMapper>([
+      [
+        'hire_tasker',
+        () => ({
+          merchant: 'Maria R.',
+          amountCents: 3800,
+          category: 'hire',
+          counterpartyId: 'maria-r',
+          handover: true,
+          evidence: '4.9 stars, 212 jobs',
+        }),
+      ],
+    ])
+    const gate = createGate({ ...policy, counterparties: { 'maria-r': { rung: 'trusted' } } })
+    const intervention = new SpendingGateIntervention(
+      gate,
+      tools,
+      async (p) => {
+        prompts.push(p)
+        return true
+      },
+      stepUpNever,
+      () => {},
+      () => t0,
+    )
+    await intervention.beforeToolCall(event('hire_tasker', { taskerId: 'maria-r' }))
+    expect(prompts[0]).toBe(
+      'Errands wants to hire Maria R for $38.00. 4.9 stars, 212 jobs.' +
+        ' This is the first time they would hold your property. Approve?',
+    )
+    expect(prompts[0]).not.toContain('..')
+  })
+
+  it('records an incident against the counterparty when the human declines', async () => {
+    const tools = new Map<string, SpendInputMapper>([
+      [
+        'hire_tasker',
+        () => ({
+          merchant: 'Maria R.',
+          amountCents: 3800,
+          category: 'hire',
+          counterpartyId: 'maria-r',
+          handover: true,
+        }),
+      ],
+    ])
+    const gate = createGate({ ...policy, counterparties: { 'maria-r': { rung: 'trusted' } } })
+    const intervention = new SpendingGateIntervention(
+      gate,
+      tools,
+      askNever,
+      stepUpNever,
+      () => {},
+      () => t0,
+    )
+    const action = await intervention.beforeToolCall(event('hire_tasker', { taskerId: 'maria-r' }))
+    expect(action).toMatchObject({ type: 'deny', reason: 'Spending gate: HUMAN_DECLINED' })
+    expect(gate.events()).toEqual([
+      {
+        counterpartyId: 'maria-r',
+        kind: 'incident',
+        detail: 'human declined',
+        at: t0.toISOString(),
+      },
+    ])
+    expect(gate.ledger()).toHaveLength(0)
+  })
+
+  it('includes the mapper evidence in the human prompt', async () => {
+    const prompts: string[] = []
+    const tools = new Map(spendTools)
+    tools.set('hire_tasker', () => ({
+      merchant: 'Maria R.',
+      amountCents: 3800,
+      category: 'hire',
+      counterpartyId: 'maria-r',
+      handover: true,
+      evidence: '4.9 stars, 212 jobs, background checked',
+    }))
+    const gate = createGate({ ...policy, counterparties: { 'maria-r': { rung: 'trusted' } } })
+    const intervention = new SpendingGateIntervention(
+      gate,
+      tools,
+      async (p) => {
+        prompts.push(p)
+        return true
+      },
+      stepUpNever,
+      () => {},
+      () => t0,
+    )
+    await intervention.beforeToolCall(event('hire_tasker', { taskerId: 'maria-r' }))
+    expect(prompts[0]).toContain('4.9 stars, 212 jobs')
   })
 })

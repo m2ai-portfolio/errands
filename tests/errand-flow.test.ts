@@ -1,7 +1,9 @@
 import type { BeforeToolCallEvent } from '@strands-agents/sdk'
 import { describe, expect, it } from 'vitest'
-import { createErrandTools, type CallRunner } from '../src/agent.js'
+import { dinnerErrand } from '../src/errands/dinner.js'
+import type { CallRunner } from '../src/errands/types.js'
 import { createGate, type Policy } from '../src/gate.js'
+import { SpendingGateIntervention } from '../src/gate-intervention.js'
 import type { DepositCharge } from '../src/tools/deposit.js'
 import type { CallOutcome } from '../src/tools/phone.js'
 import { FixtureRestaurantSearch, type Restaurant } from '../src/tools/restaurants.js'
@@ -17,6 +19,17 @@ const policy: Policy = {
   dailyCapCents: 2500,
   weeklyCapCents: 4000,
   approvalTtlMinutes: 30,
+  stepUpCents: 5000,
+  promoteAfter: 3,
+  promoteHumanAfter: 1,
+  notifyCapCents: { restaurant_deposit: 2500 },
+  vetting: {
+    minRating: 4.7,
+    minJobs: 50,
+    requireBackgroundCheck: true,
+    requireInsuredFor: { vehicle: true },
+  },
+  counterparties: {},
   categories: { call: 'allow', restaurant_deposit: 'confirm', gift: 'forbid' },
 }
 
@@ -46,11 +59,13 @@ function harness(opts: { approve: boolean; policy?: Policy }) {
       callId: `c${dialed.length}`,
       endedReason: 'assistant-ended-call',
       summary: null,
-      outcome: outcomes[dialed.length - 1] ?? FULL,
+      structuredData: outcomes[dialed.length - 1] ?? FULL,
     }
   }
   const gate = createGate(opts.policy ?? policy)
-  const errand = createErrandTools({
+  const askHuman = async (p: string) => (prompts.push(p), opts.approve)
+  const stepUp = async () => {}
+  const errand = dinnerErrand({
     config: {
       mode: 'demo',
       demoLines: ['+15025550100', '+15025550101'],
@@ -66,10 +81,18 @@ function harness(opts: { approve: boolean; policy?: Policy }) {
         { id: 'pi_test', status: 'succeeded', amountCents: c.amountCents }
       ),
     },
-    askHuman: async (p) => (prompts.push(p), opts.approve),
+    voice: { provider: 'cartesia', voiceId: 'v1' },
     now: () => new Date('2026-09-12T23:00:00Z'),
     errandId: 'errand-test',
   })
+  const intervention = new SpendingGateIntervention(
+    gate,
+    errand.spendTools,
+    askHuman,
+    stepUp,
+    () => {},
+    () => new Date('2026-09-12T23:00:00Z'),
+  )
 
   // One tool call, the way the Strands loop runs it.
   async function use(
@@ -79,7 +102,7 @@ function harness(opts: { approve: boolean; policy?: Policy }) {
     const event = {
       toolUse: { name, toolUseId: `${name}-${Math.random()}`, input },
     } as unknown as BeforeToolCallEvent
-    const action = await errand.intervention.beforeToolCall(event)
+    const action = await intervention.beforeToolCall(event)
     if (action.type === 'deny') return { denied: action.reason }
     if (action.type === 'transform') action.apply(event)
     const finalInput = event.toolUse.input as never
@@ -129,7 +152,7 @@ describe('hero errand: dinner with a fallback', () => {
 
     expect(h.dialed).toEqual(['+15025550100', '+15025550101'])
     expect(h.prompts).toEqual([
-      'Errands wants to spend $15.00 (restaurant_deposit) at Trattoria Roma. Approve?',
+      'Errands wants to spend $15.00 (restaurant deposit) at Trattoria Roma. Approve?',
     ])
     expect(h.charges).toEqual([
       {
@@ -165,17 +188,17 @@ describe('hero errand: dinner with a fallback', () => {
     await h.use('call_restaurant', { restaurantId: 'fixture-trattoria-roma', ...reservation })
     expect(
       await h.use('pay_deposit', { restaurantId: 'fixture-trattoria-roma', amountCents: 1000 }),
-    ).toEqual({ denied: 'Spending gate: SPEND_INPUT_INVALID' })
+    ).toEqual({ denied: 'Spending gate: SPEND_INPUT_INVALID: AMOUNT_NOT_QUOTED' })
     expect(
       await h.use('pay_deposit', { restaurantId: 'fixture-bella-cucina', amountCents: 1500 }),
-    ).toEqual({ denied: 'Spending gate: SPEND_INPUT_INVALID' })
+    ).toEqual({ denied: 'Spending gate: SPEND_INPUT_INVALID: NO_DEPOSIT_QUOTED' })
     expect(h.prompts).toHaveLength(0)
   })
 
   it('cannot call a restaurant it never found, and stops after three calls', async () => {
     const h = harness({ approve: true })
     expect(await h.use('call_restaurant', { restaurantId: 'made-up', ...reservation })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: UNKNOWN_RESTAURANT',
     })
     await h.use('search_restaurants', { query: 'restaurant italian mexican' })
     for (const id of ['fixture-bella-cucina', 'fixture-trattoria-roma', 'fixture-taco-town']) {
