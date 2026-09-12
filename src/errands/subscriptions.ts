@@ -4,7 +4,11 @@ import type { ErrandsConfig } from '../config.js'
 import { GateError, type Gate } from '../gate.js'
 import type { SpendInputMapper } from '../gate-intervention.js'
 import type { BankSource } from '../tools/bank.js'
-import { buildCancellationAssistant, CancelOutcomeSchema } from '../tools/cancel.js'
+import {
+  buildCancellationAssistant,
+  CancelOutcomeSchema,
+  sanitizeForPrompt,
+} from '../tools/cancel.js'
 import {
   demoLine,
   parseOutcome,
@@ -69,8 +73,14 @@ export function subscriptionsErrand(deps: SubscriptionDeps): ErrandModule & {
   const lookup = (merchant: unknown): RecurringCharge | undefined =>
     typeof merchant === 'string' ? known.get(merchant.trim().toLowerCase()) : undefined
 
+  // Run through sanitizeForPrompt even though today's inputs are numeric/date
+  // fields, not free text: this string reaches the human approval prompt, and
+  // any bank-derived field that lands there gets the same control-char /
+  // length guard as the merchant name in cancel.ts.
   const evidenceFor = (charge: RecurringCharge): string =>
-    `${formatDollars(charge.amountCents)} ${charge.cadence}, last charged ${charge.lastChargedAt.slice(0, 10)}`
+    sanitizeForPrompt(
+      `${formatDollars(charge.amountCents)} ${charge.cadence}, last charged ${charge.lastChargedAt.slice(0, 10)}`,
+    )
 
   const handlers = {
     async connect(): Promise<Json> {
@@ -107,6 +117,22 @@ export function subscriptionsErrand(deps: SubscriptionDeps): ErrandModule & {
       if (callsMade >= MAX_CANCEL_CALLS_PER_ERRAND)
         return { status: 'refused', reason: 'CALL_LIMIT_REACHED' }
 
+      // Resolve the destination FIRST, before either spend is committed. In
+      // demo mode every cancellation goes to the switchboard test line; in
+      // live mode there is no merchant phone number to dial, so it refuses.
+      // Doing this before gate.commit means a refused dial leaves no
+      // ledger row and does not consume the human's approval code.
+      let to: string
+      try {
+        to = demoLine(
+          policy,
+          deps.config.mode === 'demo' ? deps.config.demoLinesByRole.switchboard : null,
+        )
+      } catch (error) {
+        if (error instanceof PhoneError) return { status: 'refused', reason: error.code }
+        return { status: 'refused', reason: error instanceof GateError ? error.reason : 'REFUSED' }
+      }
+
       // Point of action for the cancellation itself: a 0-cent confirm, so a human
       // has approved this specific merchant before anything is phoned.
       try {
@@ -120,17 +146,9 @@ export function subscriptionsErrand(deps: SubscriptionDeps): ErrandModule & {
       }
 
       // Cancelling is also an outbound phone call, and calls are gated too.
-      // In demo mode every cancellation goes to the switchboard test line; in
-      // live mode there is no merchant phone number to dial, so it refuses.
-      let to: string
       try {
-        to = demoLine(
-          policy,
-          deps.config.mode === 'demo' ? deps.config.demoLinesByRole.switchboard : null,
-        )
         deps.gate.commit({ merchant: charge.merchant, amountCents: 0, category: 'call' }, now())
       } catch (error) {
-        if (error instanceof PhoneError) return { status: 'refused', reason: error.code }
         return { status: 'refused', reason: error instanceof GateError ? error.reason : 'REFUSED' }
       }
 
@@ -168,11 +186,15 @@ export function subscriptionsErrand(deps: SubscriptionDeps): ErrandModule & {
   }
 
   // What the gate sees for cancel_subscription. A merchant that was never listed
-  // throws here, so the intervention denies it before any human is asked.
+  // throws here, so the intervention denies it before any human is asked. The
+  // call cap is checked here too, not just in the handler, so a 6th cancel is
+  // refused before the human is ever asked to approve it (see handler for the
+  // matching point-of-action check).
   const spendTools = new Map<string, SpendInputMapper>([
     [
       'cancel_subscription',
       (input) => {
+        if (callsMade >= MAX_CANCEL_CALLS_PER_ERRAND) throw new Error('CALL_LIMIT_REACHED')
         const charge = lookup((input as { merchant?: unknown }).merchant)
         if (!charge) throw new Error('UNKNOWN_MERCHANT')
         return {

@@ -2,6 +2,7 @@
 // implementation. Stripe TEST MODE only: the constructor refuses a live key, same
 // guard as deposit.ts.
 
+import { z } from 'zod'
 import type { Transaction } from './recurring.js'
 
 type FetchLike = (url: string, init: RequestInit) => Promise<Response>
@@ -53,13 +54,20 @@ interface FcAccount {
   transaction_refresh?: { status: 'pending' | 'succeeded' | 'failed' } | null
 }
 
-interface FcTransaction {
-  id: string
-  description: string
-  amount: number
-  status: 'pending' | 'posted' | 'void'
-  transacted_at: number
-}
+// Runtime validation for whatever the Stripe API actually sends back. A bank
+// row is untrusted input: fields can be missing, `null`, or the wrong type
+// without the HTTP call itself failing, so each row is checked here rather
+// than just type-cast. Rows that fail validation are dropped, not thrown on,
+// so one bad row from the bank cannot crash the whole listing.
+export const StripeTransactionRowSchema = z.object({
+  id: z.string(),
+  description: z.preprocess((v) => (v === null || v === undefined ? '' : v), z.coerce.string()),
+  amount: z.number(),
+  status: z.enum(['pending', 'posted', 'void']),
+  transacted_at: z.number(),
+})
+
+type FcTransaction = z.infer<typeof StripeTransactionRowSchema>
 
 export class StripeFinancialConnections implements BankSource {
   readonly source = 'stripe' as const
@@ -104,13 +112,17 @@ export class StripeFinancialConnections implements BankSource {
       client_secret?: string
       error?: { code?: string; message?: string }
     }
-    if (!response.ok || !session.client_secret) {
+    if (!response.ok || !session.client_secret || !session.id) {
       throw new Error(`STRIPE_${session.error?.code ?? response.status}`)
     }
 
-    const accountIds = await this.collect(session.client_secret)
+    const collectedIds = await this.collect(session.client_secret)
+    if (collectedIds.length === 0) throw new Error('FC_NO_ACCOUNT_SELECTED')
+
+    const sessionAccountIds = await this.getSessionAccountIds(session.id)
+    const accountIds = collectedIds.filter((id) => sessionAccountIds.has(id))
     const accountId = accountIds[0]
-    if (!accountId) throw new Error('FC_NO_ACCOUNT_SELECTED')
+    if (!accountId) throw new Error('FC_ACCOUNT_NOT_IN_SESSION')
 
     const account = await this.getAccount(accountId)
     return {
@@ -118,6 +130,25 @@ export class StripeFinancialConnections implements BankSource {
       institution: account.institution_name ?? 'Unknown',
       last4: account.last4 ?? '',
     }
+  }
+
+  // Server-side check that an id the browser reported actually belongs to the
+  // Financial Connections session we created, so a tampered /done payload
+  // (see connect-page.ts) cannot smuggle in an account from elsewhere.
+  private async getSessionAccountIds(sessionId: string): Promise<Set<string>> {
+    const response = await this.fetchFn(`${FC_BASE}/sessions/${sessionId}`, {
+      method: 'GET',
+      headers: this.authHeaders(),
+      signal: AbortSignal.timeout(20_000),
+    })
+    const json = (await response.json()) as {
+      accounts?: { data?: { id: string }[] }
+      error?: { code?: string }
+    }
+    if (!response.ok) {
+      throw new Error(`STRIPE_${json.error?.code ?? response.status}`)
+    }
+    return new Set((json.accounts?.data ?? []).map((a) => a.id))
   }
 
   private async getAccount(accountId: string): Promise<FcAccount> {
@@ -179,14 +210,18 @@ export class StripeFinancialConnections implements BankSource {
         signal: AbortSignal.timeout(20_000),
       })
       const json = (await response.json()) as {
-        data?: FcTransaction[]
+        data?: unknown[]
         has_more?: boolean
         error?: { code?: string }
       }
       if (!response.ok || !json.data) {
         throw new Error(`STRIPE_${json.error?.code ?? response.status}`)
       }
-      for (const row of json.data) {
+      const rawRows = json.data
+      for (const raw of rawRows) {
+        const parsed = StripeTransactionRowSchema.safeParse(raw)
+        if (!parsed.success) continue
+        const row = parsed.data
         out.push({
           id: row.id,
           description: row.description,
@@ -195,8 +230,10 @@ export class StripeFinancialConnections implements BankSource {
           status: row.status,
         })
       }
-      if (!json.has_more || json.data.length === 0) break
-      startingAfter = json.data[json.data.length - 1]!.id
+      if (!json.has_more || rawRows.length === 0) break
+      const last = rawRows[rawRows.length - 1] as { id?: unknown } | undefined
+      startingAfter = typeof last?.id === 'string' ? last.id : undefined
+      if (!startingAfter) break
     }
     return out
   }

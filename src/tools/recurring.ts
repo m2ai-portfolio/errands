@@ -21,8 +21,8 @@ const CADENCES: { name: Cadence; min: number; max: number }[] = [
   { name: 'yearly', min: 363, max: 367 },
 ]
 
-export function normalizeMerchant(description: string): string {
-  const cleaned = description
+export function normalizeMerchant(description: unknown): string {
+  const cleaned = String(description ?? '')
     .toUpperCase()
     .replace(/\b\d[\d\- ()]{6,}\d\b/g, ' ')
     .replace(/\.COM\b|\*|#|\d+/g, ' ')
@@ -31,6 +31,7 @@ export function normalizeMerchant(description: string): string {
     .trim()
   return cleaned
     .split(' ')
+    .filter((w) => w.length > 0)
     .slice(0, 2)
     .map((w) => w[0] + w.slice(1).toLowerCase())
     .join(' ')

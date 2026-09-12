@@ -13,6 +13,13 @@ describe('normalizeMerchant', () => {
     expect(normalizeMerchant('Netflix')).toBe('Netflix')
     expect(normalizeMerchant('SQ *COFFEE CLUB 12')).toBe('Coffee Club')
   })
+
+  it('accepts non-string input defensively without throwing', () => {
+    expect(() => normalizeMerchant(12345)).not.toThrow()
+    expect(normalizeMerchant(12345)).toBe('')
+    expect(normalizeMerchant(null)).toBe('')
+    expect(normalizeMerchant(undefined)).toBe('')
+  })
 })
 
 describe('findRecurring', () => {

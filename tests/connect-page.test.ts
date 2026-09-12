@@ -20,7 +20,10 @@ describe('serveConnectPage', () => {
     const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
     close = page.close
     const boundHost = new URL(page.url).host
-    const response = await fetch(`http://127.0.0.1:${new URL(page.url).port}/connect`)
+    const parsed = new URL(page.url)
+    const response = await fetch(
+      `http://127.0.0.1:${parsed.port}/connect?${parsed.searchParams.toString()}`,
+    )
     expect(response.status).toBe(200)
     const body = await response.text()
     expect(body).toContain('js.stripe.com/v3')
@@ -28,11 +31,24 @@ describe('serveConnectPage', () => {
     expect(boundHost).not.toContain('localhost')
   })
 
+  it('returns 404 from /connect without the correct token', async () => {
+    const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
+    close = page.close
+    const port = new URL(page.url).port
+    const response = await fetch(`http://127.0.0.1:${port}/connect`)
+    expect(response.status).toBe(404)
+    const withWrongToken = await fetch(`http://127.0.0.1:${port}/connect?t=wrong`)
+    expect(withWrongToken.status).toBe(404)
+  })
+
   it('returns 409 from /secret before collect has been called', async () => {
     const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
     close = page.close
     const port = new URL(page.url).port
-    const response = await fetch(`http://127.0.0.1:${port}/secret`)
+    const token = new URL(page.url).searchParams.get('t')
+    const response = await fetch(`http://127.0.0.1:${port}/secret`, {
+      headers: { 'x-errands-token': token ?? '' },
+    })
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ error: 'NOT_READY' })
   })
@@ -41,16 +57,19 @@ describe('serveConnectPage', () => {
     const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
     close = page.close
     const port = new URL(page.url).port
+    const token = new URL(page.url).searchParams.get('t') ?? ''
 
     const collected = page.collect('cs_1')
 
-    const secretResponse = await fetch(`http://127.0.0.1:${port}/secret`)
+    const secretResponse = await fetch(`http://127.0.0.1:${port}/secret`, {
+      headers: { 'x-errands-token': token },
+    })
     expect(secretResponse.status).toBe(200)
     expect(await secretResponse.json()).toEqual({ clientSecret: 'cs_1' })
 
     const doneResponse = await fetch(`http://127.0.0.1:${port}/done`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-errands-token': token },
       body: JSON.stringify({ accountIds: ['fca_1'] }),
     })
     expect(doneResponse.status).toBe(200)
@@ -63,6 +82,7 @@ describe('serveConnectPage', () => {
     const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
     close = page.close
     const port = new URL(page.url).port
+    const token = new URL(page.url).searchParams.get('t') ?? ''
 
     const first = page.collect('cs_1')
     const firstRejection = expect(first).rejects.toThrow('CONNECT_SUPERSEDED')
@@ -70,7 +90,7 @@ describe('serveConnectPage', () => {
     const second = page.collect('cs_2')
     await fetch(`http://127.0.0.1:${port}/done`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-errands-token': token },
       body: JSON.stringify({ accountIds: ['fca_2'] }),
     })
 
@@ -99,6 +119,7 @@ describe('serveConnectPage', () => {
     const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
     close = page.close
     const port = new URL(page.url).port
+    const token = new URL(page.url).searchParams.get('t') ?? ''
 
     const collected = page.collect('cs_1')
     // Suppress the unhandled rejection warning by adding a catch handler
@@ -106,11 +127,70 @@ describe('serveConnectPage', () => {
 
     const doneResponse = await fetch(`http://127.0.0.1:${port}/done`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-errands-token': token },
       body: 'not json',
     })
     expect(doneResponse.status).toBe(400)
 
     await expect(collected).rejects.toThrow('CONNECT_BAD_DONE_BODY')
+  })
+
+  it('/secret without the header returns 401 and leaves a pending collect pending', async () => {
+    const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
+    close = page.close
+    const port = new URL(page.url).port
+
+    const collected = page.collect('cs_1')
+    let settled = false
+    collected.then(
+      () => (settled = true),
+      () => (settled = true),
+    )
+
+    const response = await fetch(`http://127.0.0.1:${port}/secret`)
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: 'UNAUTHORIZED' })
+    await new Promise((r) => setTimeout(r, 10))
+    expect(settled).toBe(false)
+
+    // Clean up the pending promise so afterEach's close() doesn't leak it.
+    const token = new URL(page.url).searchParams.get('t') ?? ''
+    await fetch(`http://127.0.0.1:${port}/done`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-errands-token': token },
+      body: JSON.stringify({ accountIds: ['fca_1'] }),
+    })
+    await collected
+  })
+
+  it('/done without the header returns 401 and leaves a pending collect pending', async () => {
+    const page = await serveConnectPage({ publishableKey: 'pk_test_1', host: '0.0.0.0', port: 0 })
+    close = page.close
+    const port = new URL(page.url).port
+
+    const collected = page.collect('cs_1')
+    let settled = false
+    collected.then(
+      () => (settled = true),
+      () => (settled = true),
+    )
+
+    const response = await fetch(`http://127.0.0.1:${port}/done`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountIds: ['fca_attacker'] }),
+    })
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: 'UNAUTHORIZED' })
+    await new Promise((r) => setTimeout(r, 10))
+    expect(settled).toBe(false)
+
+    const token = new URL(page.url).searchParams.get('t') ?? ''
+    await fetch(`http://127.0.0.1:${port}/done`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-errands-token': token },
+      body: JSON.stringify({ accountIds: ['fca_1'] }),
+    })
+    await collected
   })
 })

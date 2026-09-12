@@ -57,6 +57,9 @@ describe('StripeFinancialConnections', () => {
             JSON.stringify({ id: 'fcsess_1', client_secret: 'fcsess_client_secret_1' }),
           )
         }
+        if (String(url) === `${FC_BASE}/sessions/fcsess_1`) {
+          return new Response(JSON.stringify({ accounts: { data: [{ id: 'fca_1' }] } }))
+        }
         if (String(url) === `${FC_BASE}/accounts/fca_1`) {
           return new Response(
             JSON.stringify({
@@ -84,6 +87,57 @@ describe('StripeFinancialConnections', () => {
     expect(String(sessionCall?.init.body)).not.toContain('balances')
     const headers = sessionCall?.init.headers as Record<string, string>
     expect(headers['Authorization']).toBe('Bearer sk_test_abc')
+  })
+
+  it('throws FC_ACCOUNT_NOT_IN_SESSION when collect() returns an id not in the session', async () => {
+    const fc = new StripeFinancialConnections({
+      secretKey: 'sk_test_abc',
+      customerId: 'cus_1',
+      collect: async () => ['fca_evil'],
+      fetchFn: async (url) => {
+        const u = String(url)
+        if (u === `${FC_BASE}/sessions`) {
+          return new Response(
+            JSON.stringify({ id: 'fcsess_1', client_secret: 'fcsess_client_secret_1' }),
+          )
+        }
+        if (u === `${FC_BASE}/sessions/fcsess_1`) {
+          return new Response(JSON.stringify({ accounts: { data: [{ id: 'fca_1' }] } }))
+        }
+        throw new Error(`unexpected url ${u}`)
+      },
+    })
+    await expect(fc.connect()).rejects.toThrow('FC_ACCOUNT_NOT_IN_SESSION')
+  })
+
+  it('connect() succeeds when the collected id is in the session account list', async () => {
+    const fc = new StripeFinancialConnections({
+      secretKey: 'sk_test_abc',
+      customerId: 'cus_1',
+      collect: async () => ['fca_1'],
+      fetchFn: async (url) => {
+        const u = String(url)
+        if (u === `${FC_BASE}/sessions`) {
+          return new Response(
+            JSON.stringify({ id: 'fcsess_1', client_secret: 'fcsess_client_secret_1' }),
+          )
+        }
+        if (u === `${FC_BASE}/sessions/fcsess_1`) {
+          return new Response(JSON.stringify({ accounts: { data: [{ id: 'fca_1' }] } }))
+        }
+        if (u === `${FC_BASE}/accounts/fca_1`) {
+          return new Response(
+            JSON.stringify({ id: 'fca_1', institution_name: 'Test Bank', last4: '6789' }),
+          )
+        }
+        throw new Error(`unexpected url ${u}`)
+      },
+    })
+    await expect(fc.connect()).resolves.toEqual({
+      id: 'fca_1',
+      institution: 'Test Bank',
+      last4: '6789',
+    })
   })
 
   it('transactions() refreshes, polls, paginates, and maps debits to positive amountCents', async () => {
@@ -224,6 +278,58 @@ describe('StripeFinancialConnections', () => {
       },
     })
     await expect(fc.transactions('fca_1')).rejects.toThrow('FC_REFRESH_FAILED')
+  })
+
+  it('skips a transaction row that fails validation and keeps the valid ones', async () => {
+    const fc = new StripeFinancialConnections({
+      secretKey: 'sk_test_abc',
+      customerId: 'cus_1',
+      collect: async () => ['fca_1'],
+      sleep: async () => {},
+      fetchFn: async (url) => {
+        const u = String(url)
+        if (u === `${FC_BASE}/accounts/fca_1/refresh`) {
+          return new Response(JSON.stringify({ id: 'fca_1' }))
+        }
+        if (u === `${FC_BASE}/accounts/fca_1`) {
+          return new Response(
+            JSON.stringify({
+              id: 'fca_1',
+              institution_name: 'Test Bank',
+              last4: '6789',
+              transaction_refresh: { status: 'succeeded' },
+            }),
+          )
+        }
+        if (u === `${FC_BASE}/transactions?account=fca_1&limit=100`) {
+          return new Response(
+            JSON.stringify({
+              data: [
+                {
+                  id: 'txn_bad',
+                  description: 'Bad Amount Co',
+                  amount: 'x',
+                  status: 'posted',
+                  transacted_at: 1735689600,
+                },
+                {
+                  id: 'txn_good',
+                  description: 'Good Amount Co',
+                  amount: 500,
+                  status: 'posted',
+                  transacted_at: 1735689600,
+                },
+              ],
+              has_more: false,
+            }),
+          )
+        }
+        throw new Error(`unexpected url ${u}`)
+      },
+    })
+    const txns = await fc.transactions('fca_1')
+    expect(txns).toHaveLength(1)
+    expect(txns[0]!.id).toBe('txn_good')
   })
 
   it('throws FC_REFRESH_TIMEOUT after 120s of pending polling', async () => {

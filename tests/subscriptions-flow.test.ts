@@ -27,7 +27,7 @@ const SWITCHBOARD = '+15025550102'
 
 const CANCELLED = { cancelled: true, confirmation: 'CX-1' }
 
-function harness(opts: { approve?: boolean } = {}) {
+function harness(opts: { approve?: boolean; switchboard?: string | null } = {}) {
   const dialed: string[] = []
   const prompts: string[] = []
   const logs: string[] = []
@@ -45,7 +45,11 @@ function harness(opts: { approve?: boolean } = {}) {
   const errand = subscriptionsErrand({
     config: {
       mode: 'demo',
-      demoLinesByRole: { full: '+15025550100', open: '+15025550101', switchboard: SWITCHBOARD },
+      demoLinesByRole: {
+        full: '+15025550100',
+        open: '+15025550101',
+        switchboard: opts.switchboard === undefined ? SWITCHBOARD : opts.switchboard,
+      },
       liveAllowlist: [],
       customerName: 'Alex',
     },
@@ -201,5 +205,43 @@ describe('subscription errand: connect, list, cancel', () => {
       }),
     ).toEqual({ status: 'refused', reason: 'CALL_LIMIT_REACHED' })
     expect(h.dialed).toHaveLength(5)
+  })
+
+  it('the mapper also enforces the call cap, so a 6th cancel never wakes the human', async () => {
+    const h = harness()
+    await h.use('connect_bank')
+    const rows = (await h.use('list_recurring', {
+      accountId: 'fixture-checking',
+    })) as { merchant: string }[]
+    for (const row of rows) {
+      const result = await h.use('cancel_subscription', { merchant: row.merchant })
+      expect(result).toMatchObject({ status: 'completed' })
+    }
+    expect(h.dialed).toHaveLength(5)
+    const promptsBefore = h.prompts.length
+
+    // The 6th call goes through the full intervention path (mapper first),
+    // the same as the model would trigger it.
+    expect(await h.use('cancel_subscription', { merchant: 'Netflix' })).toEqual({
+      denied: 'Spending gate: SPEND_INPUT_INVALID',
+    })
+    expect(h.dialed).toHaveLength(5)
+    // No new approval prompt: the mapper refused before the human was asked.
+    expect(h.prompts).toHaveLength(promptsBefore)
+  })
+
+  it('a refused dial (no demo lines) leaves no cancellation ledger row and does not burn the approval code', async () => {
+    const h = harness({ switchboard: null })
+    await h.errand.handlers.connect()
+    await h.errand.handlers.listRecurring({ accountId: 'fixture-checking' })
+    const code = h.approvalFor('Netflix')
+
+    expect(await h.errand.handlers.cancel({ merchant: 'Netflix', approvalCode: code })).toEqual({
+      status: 'refused',
+      reason: 'NO_DEMO_LINES',
+    })
+    expect(h.dialed).toHaveLength(0)
+    expect(h.gate.ledger().find((e) => e.category === 'cancellation')).toBeUndefined()
+    expect(h.gate.ledger()).toHaveLength(0)
   })
 })
