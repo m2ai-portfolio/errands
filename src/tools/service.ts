@@ -20,6 +20,8 @@ export interface ServiceRequest {
 // Vapi omits structured-data fields it has no value for, so missing and null
 // mean the same thing. Only `booked` is required: without it the outcome is
 // genuinely unknown.
+// booked is true when the shop reserved a slot for the customer, even if
+// payment is due later or at the counter.
 export const ServiceOutcomeSchema = z.object({
   booked: z.boolean(),
   slot: z
@@ -46,7 +48,11 @@ export type ServiceOutcome = z.infer<typeof ServiceOutcomeSchema>
 const serviceOutcomeJsonSchema = {
   type: 'object',
   properties: {
-    booked: { type: 'boolean', description: 'True only if the shop confirmed a booking.' },
+    booked: {
+      type: 'boolean',
+      description:
+        'True when the shop reserved a slot for the customer, even if payment is due later or at the counter.',
+    },
     slot: { type: ['string', 'null'], description: 'Confirmed slot, e.g. Tomorrow 9 AM.' },
     quoteCents: {
       type: 'integer',
@@ -68,6 +74,7 @@ export function buildServiceAssistant(req: ServiceRequest, voice: VoiceConfig) {
     `Ask for the earliest available slot ${req.window}.`,
     'Ask for the total quote for the job, including parts, not just labor.',
     'If they require a deposit or card to hold the slot, ask the amount, say your client will confirm and pay through a link, and do NOT agree to pay.',
+    'A booking counts as booked as soon as the shop reserves a slot, even if payment is due later or at the counter.',
     'Never give out any card, account or personal details beyond the name for the booking.',
     'Before ending, repeat back the slot, quote and confirmation number or name. Keep the call under two minutes.',
   ].join('\n')

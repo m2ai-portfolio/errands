@@ -134,6 +134,8 @@ Blurr:
 1. A Strands **intervention** runs before every tool call. Forbidden spend is denied and never reaches the tool. `notify` spend proceeds and tells you afterwards. `confirm` spend pauses for you, with the six-digit single-use code delivered out of band at or above $50, and injected by the intervention after you say yes. Whatever the model put in `approvalCode` is discarded on every path.
 2. The tool itself calls `gate.commit()`, the point of action, which re-runs the whole policy (the caps may have been used up since the code was issued), validates the code against the merchant, amount, category, counterparty and handover flag it was bound to, marks it used, and only then writes the ledger row and the trust event.
 
+The agent runs tools one at a time, never concurrently, so an approval decided by the intervention is never racing another tool for the same gate state.
+
 **Deterministic guardrails around the model.** The model passes ids, never phone numbers. A payment has to equal the amount quoted on a booked call, checked before you are asked. A tasker who has not passed a screen cannot be hired. Call counts are capped per errand and checked both before the human is asked and again in the tool. Search results, bank rows and call transcripts are marked as data, never instructions.
 
 The rules live in `policy.json`, checked in so anyone can read them:

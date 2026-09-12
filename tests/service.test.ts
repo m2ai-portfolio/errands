@@ -99,6 +99,15 @@ describe('buildServiceAssistant', () => {
     expect(system.toLowerCase()).toContain('confirmation')
   })
 
+  it('treats a reserved slot as booked even when payment is due later', () => {
+    // A live run had the shop say the slot needed payment to hold it, and the
+    // call was extracted as booked: false. The reservation is the signal, not
+    // whether payment already happened.
+    expect(system).toContain(
+      'A booking counts as booked as soon as the shop reserves a slot, even if payment is due later or at the counter.',
+    )
+  })
+
   it('uses claude-sonnet-4-6', () => {
     expect(assistant.model.model).toBe('claude-sonnet-4-6')
   })

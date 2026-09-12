@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergeSpendTools, systemPrompt } from '../src/agent.js'
+import { agentOptions, mergeSpendTools, systemPrompt } from '../src/agent.js'
 import { dinnerErrand } from '../src/errands/dinner.js'
 import { createGate, type Policy } from '../src/gate.js'
 import { FixtureRestaurantSearch, type Restaurant } from '../src/tools/restaurants.js'
@@ -72,5 +72,27 @@ describe('mergeSpendTools', () => {
     const dinner = buildDinner()
     const clash = buildDinner()
     expect(() => mergeSpendTools([dinner, clash])).toThrow('DUPLICATE_SPEND_TOOL_call_restaurant')
+  })
+})
+
+describe('agentOptions', () => {
+  it('runs tools sequentially, never concurrently, so approvals cannot race', () => {
+    // The live run in docs/live-run-blurr.txt showed pay_service and
+    // vet_tasker issued in the same turn and run concurrently, racing the
+    // booking state. Sequential execution is the fix: one tool at a time, so
+    // every gate decision sees the state the previous tool left.
+    const dinner = buildDinner()
+    const options = agentOptions(
+      {
+        modules: [dinner],
+        gate: createGate(policy),
+        askHuman: async () => true,
+        stepUp: async () => {},
+        notify: () => {},
+        customerName: 'Alex',
+      },
+      { region: 'us-east-1', modelId: 'us.anthropic.claude-sonnet-4-6' },
+    )
+    expect(options.toolExecutor).toBe('sequential')
   })
 })
