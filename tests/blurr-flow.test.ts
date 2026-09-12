@@ -289,6 +289,31 @@ describe('blurr errand: oil change plus a hired driver', () => {
     expect(screenedEvents).toHaveLength(1)
   })
 
+  it('records a screen at most once per tasker, even after failing and passing again', async () => {
+    const h = harness({
+      outcomes: [
+        SCREEN,
+        { available: true, answers: { manual: false, insurance: true, slot: true }, notes: '' },
+        SCREEN,
+      ],
+    })
+    const first = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    expect(first).toMatchObject({ passed: true })
+    const second = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    expect(second).toMatchObject({ passed: false, failures: ['SCREEN_ANSWER_manual'] })
+    const third = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    expect(third).toMatchObject({ passed: true })
+
+    const screenedEvents = h.gate
+      .events()
+      .filter((e) => e.detail === 'screened' && e.counterpartyId === 'maria-r')
+    expect(screenedEvents).toHaveLength(1)
+    expect(await h.use('hire_tasker', { taskerId: 'maria-r' })).toMatchObject({
+      status: 'hired',
+      tasker: 'Maria R.',
+    })
+  })
+
   it('refuses a second payment for a shop already paid', async () => {
     const h = harness()
     await h.use('book_service', { shopId: 'nashville-lube', ...booking })

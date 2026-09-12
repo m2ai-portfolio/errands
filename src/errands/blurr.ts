@@ -84,6 +84,7 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
   const bookings = new Map<string, { quoteCents: number; slot: string | null }>()
   const screens = new Map<string, { slot: string }>()
   const paidShops = new Set<string>()
+  const screenedRecorded = new Set<string>()
   let callsMade = 0
 
   const policy: DestinationPolicy =
@@ -290,7 +291,10 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
         // for anyone else. Record the screen event at most once per tasker:
         // repeating it would manufacture a track record just by re-dialing
         // someone who already passed.
-        if (!screens.has(profile.id)) deps.gate.recordScreened(profile.id, now())
+        if (!screenedRecorded.has(profile.id)) {
+          deps.gate.recordScreened(profile.id, now())
+          screenedRecorded.add(profile.id)
+        }
         screens.set(profile.id, { slot: input.slot })
       } else {
         // A later failed screen invalidates any earlier passed one.
