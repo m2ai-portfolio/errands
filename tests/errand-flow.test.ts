@@ -1,7 +1,9 @@
 import type { BeforeToolCallEvent } from '@strands-agents/sdk'
 import { describe, expect, it } from 'vitest'
-import { createErrandTools, type CallRunner } from '../src/agent.js'
+import { dinnerErrand } from '../src/errands/dinner.js'
+import type { CallRunner } from '../src/errands/types.js'
 import { createGate, type Policy } from '../src/gate.js'
+import { SpendingGateIntervention } from '../src/gate-intervention.js'
 import type { DepositCharge } from '../src/tools/deposit.js'
 import type { CallOutcome } from '../src/tools/phone.js'
 import { FixtureRestaurantSearch, type Restaurant } from '../src/tools/restaurants.js'
@@ -61,7 +63,9 @@ function harness(opts: { approve: boolean; policy?: Policy }) {
     }
   }
   const gate = createGate(opts.policy ?? policy)
-  const errand = createErrandTools({
+  const askHuman = async (p: string) => (prompts.push(p), opts.approve)
+  const stepUp = async () => {}
+  const errand = dinnerErrand({
     config: {
       mode: 'demo',
       demoLines: ['+15025550100', '+15025550101'],
@@ -77,11 +81,18 @@ function harness(opts: { approve: boolean; policy?: Policy }) {
         { id: 'pi_test', status: 'succeeded', amountCents: c.amountCents }
       ),
     },
-    askHuman: async (p) => (prompts.push(p), opts.approve),
-    stepUp: async () => {},
+    voice: { provider: 'cartesia', voiceId: 'v1' },
     now: () => new Date('2026-09-12T23:00:00Z'),
     errandId: 'errand-test',
   })
+  const intervention = new SpendingGateIntervention(
+    gate,
+    errand.spendTools,
+    askHuman,
+    stepUp,
+    () => {},
+    () => new Date('2026-09-12T23:00:00Z'),
+  )
 
   // One tool call, the way the Strands loop runs it.
   async function use(
@@ -91,7 +102,7 @@ function harness(opts: { approve: boolean; policy?: Policy }) {
     const event = {
       toolUse: { name, toolUseId: `${name}-${Math.random()}`, input },
     } as unknown as BeforeToolCallEvent
-    const action = await errand.intervention.beforeToolCall(event)
+    const action = await intervention.beforeToolCall(event)
     if (action.type === 'deny') return { denied: action.reason }
     if (action.type === 'transform') action.apply(event)
     const finalInput = event.toolUse.input as never

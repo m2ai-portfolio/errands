@@ -3,15 +3,11 @@ import { stdin, stdout } from 'node:process'
 import { createErrandsAgent } from './agent.js'
 import { createAsk } from './ask.js'
 import { loadConfig } from './config.js'
+import { dinnerErrand } from './errands/dinner.js'
 import { createGate } from './gate.js'
 import { consoleStepUp, telegramStepUp } from './stepup.js'
 import { StripeTestDeposits } from './tools/deposit.js'
-import {
-  buildReservationAssistant,
-  placeCall,
-  VapiClient,
-  type VoiceConfig,
-} from './tools/phone.js'
+import { placeCall, VapiClient, type VoiceConfig } from './tools/phone.js'
 import {
   FixtureRestaurantSearch,
   GooglePlacesRestaurantSearch,
@@ -52,22 +48,27 @@ async function main() {
       ? telegramStepUp(process.env.TELEGRAM_BOT_TOKEN ?? '', process.env.TELEGRAM_CHAT_ID ?? '')
       : consoleStepUp((l) => process.stderr.write(l + '\n'))
 
+  const gate = createGate(config.policy)
+  const runCall = ({ to, assistant }: { to: string; assistant: object }) =>
+    placeCall({ client: vapi, phoneNumberId: config.outboundPhoneNumberId, to, assistant })
+  const dinner = dinnerErrand({
+    config,
+    gate,
+    search,
+    runCall,
+    deposits: new StripeTestDeposits(process.env.STRIPE_SECRET_KEY ?? ''),
+    voice,
+    log,
+  })
+
   const agent = createErrandsAgent(
     {
-      config,
-      gate: createGate(config.policy),
-      search,
-      deposits: new StripeTestDeposits(process.env.STRIPE_SECRET_KEY ?? ''),
-      runCall: ({ to, request: reservation }) =>
-        placeCall({
-          client: vapi,
-          phoneNumberId: config.outboundPhoneNumberId,
-          to,
-          assistant: buildReservationAssistant(reservation, voice),
-        }),
+      modules: [dinner],
+      gate,
       askHuman: createAsk(stdin, stdout),
       stepUp,
-      log,
+      notify: log,
+      customerName: config.customerName,
     },
     config.bedrock,
   )
