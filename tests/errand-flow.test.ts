@@ -57,7 +57,7 @@ function harness(opts: { approve: boolean; policy?: Policy }) {
       callId: `c${dialed.length}`,
       endedReason: 'assistant-ended-call',
       summary: null,
-      outcome: outcomes[dialed.length - 1] ?? FULL,
+      structuredData: outcomes[dialed.length - 1] ?? FULL,
     }
   }
   const gate = createGate(opts.policy ?? policy)

@@ -6,6 +6,8 @@ import { SpendingGateIntervention, type AskHuman } from './gate-intervention.js'
 import type { StepUpChannel } from './stepup.js'
 import type { DepositProcessor } from './tools/deposit.js'
 import {
+  CallOutcomeSchema,
+  parseOutcome,
   PhoneError,
   resolveDestination,
   type CallResult,
@@ -144,7 +146,7 @@ export function createErrandTools(deps: ErrandDeps) {
           flexibility: input.flexibility,
         },
       })
-      const outcome = result.outcome
+      const outcome = parseOutcome(CallOutcomeSchema, result.structuredData)
       if (outcome?.booked)
         bookings.set(restaurant.id, { depositRequiredCents: outcome.depositRequiredCents })
       log(
