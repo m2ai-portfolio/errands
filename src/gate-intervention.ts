@@ -1,7 +1,7 @@
 import { InterventionActions, InterventionHandler } from '@strands-agents/sdk'
 import type { BeforeToolCallEvent, OnError } from '@strands-agents/sdk'
 import type { Gate, SpendRequest } from './gate.js'
-import { categoryLabel } from './labels.js'
+import { categoryLabel, noTrailingPeriod } from './labels.js'
 import { sanitizeForPrompt } from './sanitize.js'
 import type { StepUpChannel } from './stepup.js'
 
@@ -23,9 +23,6 @@ const isObject = (value: unknown): value is JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 export const formatCents = (cents: number): string => `$${(cents / 100).toFixed(2)}`
-
-// "Maria R." already ends in a period; appending another gives "Maria R..".
-const noTrailingPeriod = (text: string): string => text.replace(/\.+$/, '')
 
 // One sentence per category, because "$0.00 (cancellation) at Netflix" is not
 // what is actually being decided. The amount is dropped where it is always
@@ -91,7 +88,7 @@ export class SpendingGateIntervention extends InterventionHandler {
 
     if (evaluation.decision === 'notify') {
       this.notify(
-        `Errands is spending ${formatCents(request.amountCents)} (${request.category}) at ${who} on its track record (rung ${evaluation.rung}). No approval needed.`,
+        `Errands is spending ${formatCents(request.amountCents)} (${categoryLabel(request.category)}) at ${who} on its track record (rung ${evaluation.rung}). No approval needed.`,
       )
       return InterventionActions.transform(setInput(cleanInput), { reason: evaluation.reason })
     }

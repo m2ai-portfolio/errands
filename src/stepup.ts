@@ -1,7 +1,7 @@
 // Out-of-band delivery of an approval code. Rule 4 of the trust ladder: at or
 // above stepUpCents the code must not travel on the channel the agent talks on.
 
-import { categoryLabel } from './labels.js'
+import { categoryLabel, noTrailingPeriod } from './labels.js'
 
 export interface StepUpSummary {
   who: string
@@ -15,7 +15,8 @@ export type StepUpChannel = (code: string, summary: StepUpSummary) => Promise<vo
 const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
 export function formatStepUp(code: string, summary: StepUpSummary): string {
-  return `Errands approval code ${code}: ${dollars(summary.amountCents)} (${categoryLabel(summary.category)}) to ${summary.who}. First it ${summary.triedFirst}. Reply in the Errands terminal with this code to approve, or ignore to decline.`
+  const who = noTrailingPeriod(summary.who)
+  return `Errands approval code ${code}: ${dollars(summary.amountCents)} (${categoryLabel(summary.category)}) to ${who}. First it ${summary.triedFirst}. Reply in the Errands terminal with this code to approve, or ignore to decline.`
 }
 
 export function consoleStepUp(write: (line: string) => void): StepUpChannel {

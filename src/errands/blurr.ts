@@ -55,17 +55,37 @@ const SCREEN_KEY_HINTS: Readonly<Record<(typeof SCREEN_KEYS)[number], readonly s
   slot: ['slot', 'avail'],
 }
 
+// A key whose own name reads as a negation of the question (e.g. `uninsured`,
+// `not_available`) is never a plausible spelling of the positive question we
+// asked. Matching it anyway would read a driver who is NOT insured as having
+// answered "yes" to "are you insured".
+const NEGATION_PREFIXES = ['un', 'not']
+
+function isNegatedKey(lower: string): boolean {
+  return NEGATION_PREFIXES.some(
+    (prefix) => lower.startsWith(prefix) || lower.includes(`_${prefix}`),
+  )
+}
+
 function resolveScreenAnswer(
   answers: Record<string, boolean>,
   key: (typeof SCREEN_KEYS)[number],
 ): boolean {
   if (key in answers) return answers[key] === true
   const hints = SCREEN_KEY_HINTS[key]
+  // Collect every hint-matching key instead of returning on the first match:
+  // if more than one exists and they disagree on the answer, there is no way
+  // to tell which one the model meant, so fail closed rather than guess.
+  const matches: boolean[] = []
   for (const [candidateKey, value] of Object.entries(answers)) {
     const lower = candidateKey.toLowerCase()
-    if (hints.some((hint) => lower.includes(hint))) return value === true
+    if (isNegatedKey(lower)) continue
+    if (hints.some((hint) => lower.includes(hint))) matches.push(value === true)
   }
-  return false
+  if (matches.length === 0) return false
+  const [first, ...rest] = matches
+  if (rest.some((m) => m !== first)) return false
+  return first as boolean
 }
 
 export interface Shop {
@@ -116,7 +136,13 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
   const now = deps.now ?? (() => new Date())
   const log = deps.log ?? (() => {})
   const errandId = deps.errandId ?? `errand-${Date.now()}`
-  const bookings = new Map<string, { quoteCents: number; slot: string | null }>()
+  const bookings = new Map<string, { quoteCents: number; slot: string | null; visit: number }>()
+  // Counts booked outcomes per shop, so a second visit to the same shop gets a
+  // distinct payment idempotency key. Confirmation numbers are not reliable
+  // for this: the mock and live service call outcomes can both come back with
+  // confirmation null, so a counter is the one value guaranteed to differ
+  // between two bookings at the same shop.
+  const shopVisitCounts = new Map<string, number>()
   const screens = new Map<string, { slot: string }>()
   const paidShops = new Set<string>()
   const screenedRecorded = new Set<string>()
@@ -209,7 +235,9 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
       })
       const outcome = parseOutcome(ServiceOutcomeSchema, result.structuredData)
       if (outcome?.booked) {
-        bookings.set(shop.id, { quoteCents: outcome.quoteCents, slot: outcome.slot })
+        const visit = (shopVisitCounts.get(shop.id) ?? 0) + 1
+        shopVisitCounts.set(shop.id, visit)
+        bookings.set(shop.id, { quoteCents: outcome.quoteCents, slot: outcome.slot, visit })
         if (outcome.slot) bookedSlot = outcome.slot
         // ALREADY_PAID guards a single booking, not the shop forever: a new
         // booked outcome is a new visit with a new payable quote, so a prior
@@ -255,10 +283,16 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
       } catch (error) {
         return { status: 'refused', reason: error instanceof GateError ? error.reason : 'REFUSED' }
       }
+      // Booking-scoped: shopVisitCounts still holds the number for the booking
+      // that was just paid (ALREADY_PAID and the mapper's own NO_QUOTE check
+      // both prevent paying without a live booking, so a visit number is
+      // always present here in practice; 1 is a safe fallback, never a
+      // reused key, if a direct handler call skips those guards).
+      const visit = shopVisitCounts.get(shop.id) ?? 1
       const receipt = await deps.deposits.charge({
         amountCents: input.amountCents,
         description: `Errands service: ${shop.name}`,
-        idempotencyKey: `${errandId}-${shop.id}-service`,
+        idempotencyKey: `${errandId}-${shop.id}-${visit}-service`,
       })
       paidShops.add(shop.id)
       log(`service payment ${receipt.status}: ${shop.name}`)

@@ -213,7 +213,7 @@ describe('blurr errand: oil change plus a hired driver', () => {
       {
         amountCents: 8900,
         description: 'Errands service: Nashville Lube and Tire',
-        idempotencyKey: 'errand-test-nashville-lube-service',
+        idempotencyKey: 'errand-test-nashville-lube-1-service',
       },
       {
         amountCents: 3800,
@@ -419,6 +419,17 @@ describe('blurr errand: oil change plus a hired driver', () => {
     expect(await h.use('pay_service', { shopId: 'nashville-lube', amountCents: 6500 })).toEqual({
       denied: 'Spending gate: SPEND_INPUT_INVALID: ALREADY_PAID',
     })
+
+    // N1: the two payments must never share an idempotency key. Before the
+    // fix both charges keyed off `${errandId}-${shop.id}-service` alone, so a
+    // real Stripe call would see the same key with a different amount body
+    // and reject the second charge with idempotency_error, after the ledger
+    // and approval code for it had already been consumed.
+    expect(h.charges).toHaveLength(2)
+    const [firstCharge, secondCharge] = h.charges
+    expect(firstCharge?.idempotencyKey).not.toBe(secondCharge?.idempotencyKey)
+    expect(firstCharge?.idempotencyKey).toBe('errand-test-nashville-lube-1-service')
+    expect(secondCharge?.idempotencyKey).toBe('errand-test-nashville-lube-2-service')
   })
 
   it('passes the screen even when the call extraction uses different key names for the same three answers', async () => {
@@ -439,6 +450,39 @@ describe('blurr errand: oil change plus a hired driver', () => {
     await h.use('book_service', { shopId: 'nashville-lube', ...booking })
     const screen = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
     expect(screen).toMatchObject({ passed: true, failures: [] })
+  })
+
+  it('N3: fails closed when two hint-matching keys disagree on the same question', async () => {
+    // "available_this_week" (hints at slot's "avail") and "slot_confirmed"
+    // (hints at slot's "slot") both match the same SCREEN_KEYS entry and
+    // disagree. There is no way to tell which the model meant, so the
+    // question must fail rather than pick either sides's answer.
+    const DISAGREEING_SCREEN = {
+      available: true,
+      answers: {
+        manual: true,
+        insurance: true,
+        available_this_week: true,
+        slot_confirmed: false,
+      },
+      notes: '',
+    }
+    const h = harness({ outcomes: [SERVICE, DISAGREEING_SCREEN] })
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    const screen = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    expect(screen).toMatchObject({ passed: false, failures: ['SCREEN_ANSWER_slot'] })
+  })
+
+  it('N3: a negated key name (uninsured) never counts as a positive match', async () => {
+    const NEGATED_KEY_SCREEN = {
+      available: true,
+      answers: { manual: true, uninsured: true, slot: true },
+      notes: '',
+    }
+    const h = harness({ outcomes: [SERVICE, NEGATED_KEY_SCREEN] })
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    const screen = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    expect(screen).toMatchObject({ passed: false, failures: ['SCREEN_ANSWER_insurance'] })
   })
 
   it('a later failed screen invalidates an earlier passed one', async () => {

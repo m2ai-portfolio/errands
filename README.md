@@ -59,7 +59,7 @@ At most three calls in an errand.
 A real run is recorded in `docs/live-run-2026-09-11.txt`.
 
 ```
->>> DECISION NEEDED: Errands wants to spend $15.00 (restaurant_deposit)
+>>> DECISION NEEDED: Errands wants to spend $15.00 (restaurant deposit)
     at Trattoria Roma. Approve? [y/N] y
   · deposit succeeded: Trattoria Roma
 ```
@@ -191,7 +191,7 @@ Requirements: Node.js 22+, an AWS account with Bedrock access to Claude Sonnet 4
 ```bash
 git clone https://github.com/m2ai-portfolio/errands && cd errands
 npm install
-npm test                                   # 208 offline tests in 19 files, no keys needed
+npm test                                   # 214 offline tests in 19 files, no keys needed
 ```
 
 | Variable                   | What it does                                                                                                             |
@@ -264,7 +264,7 @@ This repository was created and written during the hackathon Submission Period (
 | `policy.json`                  | The spending and vetting rules, checked in                                |
 | `fixtures/`                    | Restaurants, shops, taskers, bank transactions                            |
 | `scripts/offline-run.ts`       | Scripted end-to-end run for anyone without Vapi or Stripe keys            |
-| `tests/`                       | 208 offline tests across 19 files                                         |
+| `tests/`                       | 214 offline tests across 19 files                                         |
 
 ## License
 

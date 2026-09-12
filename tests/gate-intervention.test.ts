@@ -193,6 +193,8 @@ describe('SpendingGateIntervention', () => {
     const action = await intervention.beforeToolCall(depositEvent(1500))
     expect(action.type).toBe('transform')
     expect(notes[0]).toMatch(/track record/i)
+    expect(notes[0]).toContain('(restaurant deposit)')
+    expect(notes[0]).not.toContain('restaurant_deposit')
   })
 
   it('delivers the code out of band and requires the human to type it at or above stepUpCents', async () => {

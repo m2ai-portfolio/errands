@@ -17,6 +17,11 @@ describe('step-up', () => {
     expect(text).toContain('asked for a quote by phone')
     expect(text).toContain('123456')
   })
+  it('trims a trailing period from who so it never doubles into ".."', () => {
+    const text = formatStepUp('123456', { ...summary, who: 'Maria R.' })
+    expect(text).toContain('to Maria R.')
+    expect(text).not.toContain('Maria R..')
+  })
   it('console channel writes one labelled line', async () => {
     const lines: string[] = []
     await consoleStepUp((l) => lines.push(l))('123456', summary)
