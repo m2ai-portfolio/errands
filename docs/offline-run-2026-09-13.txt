@@ -4,33 +4,33 @@ Errands offline run (demo mode, search: fixture)
 === Errand 1/4 ===
 Request: Book dinner for 2 tonight at 7 PM at Bella Cucina in Nashville. If they are full, find somewhere comparable between 6:30 and 8:00 PM.
 
-I'll start by searching for Bella Cucina in Nashville and comparable Italian restaurants at the same time!
-  ⏳ search_restaurants
-
+I'll start by searching for Bella Cucina in Nashville right away!
   ⏳ search_restaurants
 
 🔧 Tool #1: search_restaurants
   · search "Bella Cucina Nashville" -> Bella Cucina
-
-🔧 Tool #2: search_restaurants
-  · search "Italian restaurant Nashville" -> Bella Cucina, Trattoria Roma, Taco Town
 ✓ Tool completed
-✓ Tool completed
-Got the results! I have Bella Cucina as the first choice and Trattoria Roma as a comparable backup (same cuisine, similar price, great rating). Let me call Bella Cucina now.
+Found Bella Cucina! Let me call them now to request the reservation.
   ⏳ call_restaurant
 
-🔧 Tool #3: call_restaurant
+🔧 Tool #2: call_restaurant
   · calling Bella Cucina (attempt 1, demo line)
   · Bella Cucina: not booked
 ✓ Tool completed
-Bella Cucina is fully booked tonight. Moving on to Trattoria Roma — same cuisine, moderate price level, and a solid 4.5 rating!
+Bella Cucina is fully booked tonight. Let me search for a comparable Italian restaurant in Nashville right away!
+  ⏳ search_restaurants
+
+🔧 Tool #3: search_restaurants
+  · search "italian restaurant Nashville" -> Trattoria Roma, Taco Town
+✓ Tool completed
+Found a great comparable option — Trattoria Roma, also Italian, moderate price level, and rated 4.5 ⭐. Let me call them now!
   ⏳ call_restaurant
 
 🔧 Tool #4: call_restaurant
   · calling Trattoria Roma (attempt 2, demo line)
   · Trattoria Roma: booked 7:00 PM
 ✓ Tool completed
-Trattoria Roma is booked at 7:00 PM! They require a $15.00 deposit to hold the table. Processing that now — a human will review and approve the payment before it goes through.
+Trattoria Roma is booked and confirmed at 7:00 PM! They require a **$15.00 deposit** to hold the table. Let me go ahead and pay that now.
   ⏳ pay_deposit
 
 >>> DECISION NEEDED: Errands wants to spend $15.00 (restaurant deposit) at Trattoria Roma. Approve?
@@ -43,16 +43,16 @@ All done! Here's a summary:
 
 ---
 
-🍝 **Dinner Booked — Trattoria Roma**
+🍝 **Dinner booked at Trattoria Roma**
 - **Date:** Tonight at **7:00 PM**
 - **Party size:** 2
-- **Address:** 200 Demo Ave, Nashville, TN
 - **Confirmation code:** `TR-4821`
-- **Deposit paid:** $15.00 (payment ID: `pi_offline_1`)
+- **Deposit paid:** $15.00 (Payment ID: `pi_offline_1`)
+- **Address:** 200 Demo Ave, Nashville, TN
 
-**Note:** Bella Cucina was fully booked tonight, so I secured a comparable spot at Trattoria Roma — same Italian cuisine, moderate price level, and a 4.5-star rating.
+> *Note: Bella Cucina was fully booked tonight, so Trattoria Roma was chosen as the best comparable alternative — same Italian cuisine, moderate pricing, and a 4.5 ⭐ rating.*
 
-**To cancel:** Contact Trattoria Roma directly with confirmation code `TR-4821`. Check with them about their deposit refund policy when you call.
+**To cancel:** Contact Trattoria Roma directly with confirmation code `TR-4821`. Ask about their deposit refund policy when you call.
 
 
 === Errand 2/4 ===
@@ -76,15 +76,15 @@ Got it! Now let me pull up all your recurring charges.
 ✓ Tool completed
 Here's everything I found on your account:
 
-| Merchant | Amount | Cadence |
-|---|---|---|
-| Planet Fitness | $24.99 | Monthly |
-| Netflix | $15.49 | Monthly |
-| Spotify | $11.99 | Monthly |
-| Clouddrive Plus | $9.99 | Monthly |
-| Coffee Club | $6.00 | Weekly |
+| # | Merchant | Amount | Cadence |
+|---|----------|--------|---------|
+| 1 | Planet Fitness | $24.99 | Monthly |
+| 2 | **Netflix** | $15.49 | Monthly |
+| 3 | Spotify | $11.99 | Monthly |
+| 4 | Clouddrive Plus | $9.99 | Monthly |
+| 5 | Coffee Club | $6.00 | Weekly |
 
-You asked to cancel Netflix, so I'm on it now!
+Since you asked to cancel Netflix, I'm on it now!
   ⏳ cancel_subscription
 
 >>> DECISION NEEDED: Errands wants to cancel your Netflix subscription. $15.49 monthly, last charged 2026-08-16. Approve?
@@ -96,44 +96,49 @@ y  (offline runner)
 ✓ Tool completed
 All done! Here's a summary:
 
-**Your Monthly Subscriptions:**
+---
+
+**Your Monthly (& Weekly) Subscriptions:**
 - Planet Fitness — $24.99/mo
 - ~~Netflix~~ — $15.49/mo ✅ **Cancelled**
 - Spotify — $11.99/mo
 - Clouddrive Plus — $9.99/mo
 - Coffee Club — $6.00/wk
 
-**Netflix Cancellation Details:**
-- Confirmation #: **CX-4471**
-- Effective: **End of current billing period** (you'll keep access until then)
+---
 
-To undo the Netflix cancellation, you'll need to log back into Netflix and reactivate your plan before the billing period ends. Let me know if you'd like to cancel anything else!
+**Netflix Cancellation Details:**
+- 📋 Confirmation: **CX-4471**
+- 📅 Effective: **End of current billing period**
+- 💰 You'll save **$15.49/month**
+
+If you change your mind and want to undo the Netflix cancellation, you'll need to resubscribe directly at [netflix.com](https://netflix.com) before your billing period ends. Let me know if you'd like to cancel anything else!
 
 
 === Errand 3/4 ===
 Request: Get Blurr, my 2019 Corvette, an oil change this week and have someone take it there and back.
 
-I'll start by finding shops that do oil changes at the same time as finding available taskers for the vehicle. Let me kick both off simultaneously!
+I'll start by finding shops for an oil change and taskers for the vehicle class at the same time!
   ⏳ find_shops
 
 🔧 Tool #1: find_shops
   · shops for "oil change" -> Nashville Lube and Tire, Music City Auto Care
 ✓ Tool completed
-Got the shops! Booking with the first one — Nashville Lube and Tire — now!
+Got the shops! Now I'll book the first one — Nashville Lube and Tire — for this week.
   ⏳ book_service
 
 🔧 Tool #2: book_service
   · calling Nashville Lube and Tire (call 1, demo line)
   · Nashville Lube and Tire: booked Tuesday 9:00 AM
 ✓ Tool completed
-Booked at Tuesday 9:00 AM for $89.00! Now I'll pay for the service and find taskers to drive Blurr — simultaneously!
+Booked for Tuesday 9:00 AM! The quote is **$89.00**. Now I'll pay the shop and simultaneously find taskers for the drive!
   ⏳ pay_service
 
   ⏳ find_taskers
-[second channel] Errands approval code 567612: $89.00 (service booking) to Nashville Lube and Tire. First it called the shop, which quoted this amount. Reply in the Errands terminal with this code to approve, or ignore to decline.
+[second channel] Errands approval code 387620: $89.00 (service booking) to Nashville Lube and Tire. First it called the shop, which quoted this amount. Reply in the Errands terminal with this code to approve, or ignore to decline.
 
 >>> DECISION NEEDED: Errands wants to spend $89.00 (service booking) at Nashville Lube and Tire. Approve?
-567612  (offline runner)
+387620  (offline runner)
 
 🔧 Tool #3: pay_service
   · service payment succeeded: Nashville Lube and Tire
@@ -142,20 +147,20 @@ Booked at Tuesday 9:00 AM for $89.00! Now I'll pay for the service and find task
   · taskers for vehicle -> Dev K., Maria R., Lena P., Jules T., Sam O.
 ✓ Tool completed
 ✓ Tool completed
-Payment is in! Now vetting the top tasker — Dev K. — for the Tuesday 9:00 AM slot!
+Payment's in! Now I'll vet the top-ranked tasker, Dev K., for Tuesday 9:00 AM.
   ⏳ vet_tasker
 
 🔧 Tool #5: vet_tasker
   · Dev K. failed vetting: NOT_INSURED_FOR_vehicle
 ✓ Tool completed
-Dev K. isn't insured for vehicles — moving on to Maria R.!
+Dev K. isn't insured for vehicles — moving on to the next candidate, Maria R.!
   ⏳ vet_tasker
 
 🔧 Tool #6: vet_tasker
   · screening Maria R. (call 2, demo line)
   · Maria R. screen: passed
 ✓ Tool completed
-Maria R. passed! Hiring her now!
+Maria R. passed! Now I'll hire her.
   ⏳ hire_tasker
 
 >>> DECISION NEEDED: Errands wants to hire Maria R for $38.00. 4.9 stars, 212 jobs, background checked, insured for vehicles, screened by phone. This is the first time they would hold your property. Approve?
@@ -164,42 +169,95 @@ y  (offline runner)
 🔧 Tool #7: hire_tasker
   · hired Maria R. for Tuesday 9:00 AM
 ✓ Tool completed
-Everything is locked in! Here's the full summary:
+Everything is set! Here's the full summary:
 
 ---
 
 🚗 **Blurr's Oil Change — All Set!**
 
-| | Details |
+| | |
 |---|---|
 | **Shop** | Nashville Lube and Tire |
 | **Slot** | Tuesday 9:00 AM |
 | **Confirmation** | NL-77 |
-| **Oil Change Cost** | $89.00 |
-| **Driver** | Maria R. ⭐ 4.9 (212 jobs, vehicle-insured) |
-| **Driver Cost** | $38.00 |
+| **Oil Change Cost** | $89.00 ✅ Paid |
+| **Driver** | Maria R. (4.9 ⭐, vehicle-insured) |
+| **Driver Fee** | $38.00 ✅ Hired |
 | **Total** | **$127.00** |
 
 ---
 
-**To cancel:**
-- **Shop appointment** — Contact Nashville Lube and Tire with confirmation **NL-77** at 300 Demo Blvd, Nashville, TN.
-- **Driver** — Cancel Maria R.'s booking through the tasker marketplace using tasker ID **maria-r**.
+**To cancel the appointment:** Contact Nashville Lube and Tire with confirmation **NL-77**.
+**To cancel the driver:** Contact the task marketplace and reference tasker **Maria R. / Tuesday 9:00 AM**.
 
 
 === Errand 4/4 ===
-Request: Blurr needs to go back to the shop next Tuesday for the tire rotation they mentioned. Book it and have Maria take it again.
+Request: Book Blurr, my 2019 Corvette, for a tire rotation at Nashville Lube and Tire next Tuesday at 9:00 AM, pay whatever they quote, and hire Maria R. (tasker maria-r) to take it there and back like last time.
 
-I need a couple of details before I can get started:
+I'll kick off the errand right away! Let me search for the shop and find taskers at the same time.
+  ⏳ find_shops
 
-1. **Vehicle** – What's the year, make, and model of Blurr (e.g., "2019 Toyota Camry")?
-2. **Maria** – Do you have Maria's tasker ID, or should I search for available taskers and look for her in the list?
+  ⏳ find_taskers
 
-Also, just to confirm – **next Tuesday** works as the timing window for both the shop appointment and Maria's driving slot?
+🔧 Tool #1: find_shops
+  · shops for "tire rotation" -> Nashville Lube and Tire
+
+🔧 Tool #2: find_taskers
+  · taskers for vehicle -> Dev K., Maria R., Lena P., Jules T., Sam O.
+✓ Tool completed
+✓ Tool completed
+Nashville Lube and Tire is confirmed. Now let me book the tire rotation — and per the workflow, I need to have a booked slot before I can screen Maria R., so I'll book first.
+  ⏳ book_service
+
+🔧 Tool #3: book_service
+  · calling Nashville Lube and Tire (call 1, demo line)
+  · Nashville Lube and Tire: booked Tuesday 9:00 AM
+✓ Tool completed
+Slot locked in at Tuesday 9:00 AM! Now let me pay the $89.00 quote and simultaneously vet Maria R. for that slot.
+  ⏳ pay_service
+
+  ⏳ vet_tasker
+
+🚫 Tool #4: pay_service (denied)
+
+🔧 Tool #5: vet_tasker
+  · screening Maria R. (call 2, demo line)
+  · Maria R. screen: passed
+✗ Tool failed
+✓ Tool completed
+Maria R. passed her screen! However, the service payment was denied (daily spending cap hit). Let me still proceed to hire Maria R. since she's cleared, then I'll flag the payment issue for you.
+  ⏳ hire_tasker
+  · Errands is spending $38.00 (hire) at Maria R. on its track record (rung proven). No approval needed.
+
+🔧 Tool #6: hire_tasker
+  · hired Maria R. for Tuesday 9:00 AM
+✓ Tool completed
+Here's the full rundown, Alex:
+
+---
+
+**✅ Blurr's Tire Rotation — All Set (Almost)**
+
+| | |
+|---|---|
+| **Shop** | Nashville Lube and Tire |
+| **Confirmation** | NL-77 |
+| **Slot** | Tuesday 9:00 AM |
+| **Service Quote** | $89.00 |
+| **Driver** | Maria R. (vehicle-insured, 4.9★, passed phone screen) |
+| **Driver Rate** | $38.00 |
+
+---
+
+⚠️ **One issue:** The $89.00 service payment was **declined** — your daily spending cap was exceeded. You'll need to authorize or manually pay that charge to Nashville Lube and Tire. The booking (NL-77) is confirmed, so the slot is held.
+
+**To undo everything:**
+- **Cancel the appointment:** Call Nashville Lube and Tire with confirmation **NL-77**.
+- **Release Maria R.:** Contact task-marketplace support referencing tasker **maria-r** and payment **pi_offline_4**.
 
 
 === Ledger ===
-[{"merchant":"Bella Cucina","amountCents":0,"category":"call","at":"2026-09-12T20:57:20.243Z","approvedBy":"policy"},{"merchant":"Trattoria Roma","amountCents":0,"category":"call","at":"2026-09-12T20:57:22.656Z","approvedBy":"policy"},{"merchant":"Trattoria Roma","amountCents":1500,"category":"restaurant_deposit","at":"2026-09-12T20:57:24.759Z","approvedBy":"human"},{"merchant":"Netflix","amountCents":0,"category":"cancellation","at":"2026-09-12T20:57:33.619Z","approvedBy":"human"},{"merchant":"Netflix","amountCents":0,"category":"call","at":"2026-09-12T20:57:33.620Z","approvedBy":"policy"},{"merchant":"Nashville Lube and Tire","amountCents":0,"category":"call","at":"2026-09-12T20:57:41.520Z","approvedBy":"policy"},{"merchant":"Nashville Lube and Tire","amountCents":8900,"category":"service_booking","at":"2026-09-12T20:57:43.819Z","approvedBy":"human"},{"merchant":"Maria R.","amountCents":0,"category":"call","at":"2026-09-12T20:57:47.544Z","approvedBy":"policy"},{"merchant":"Maria R.","amountCents":3800,"category":"hire","counterpartyId":"maria-r","handover":true,"at":"2026-09-12T20:57:49.012Z","approvedBy":"human"}]
+[{"merchant":"Bella Cucina","amountCents":0,"category":"call","at":"2026-09-12T21:02:03.804Z","approvedBy":"policy"},{"merchant":"Trattoria Roma","amountCents":0,"category":"call","at":"2026-09-12T21:02:08.485Z","approvedBy":"policy"},{"merchant":"Trattoria Roma","amountCents":1500,"category":"restaurant_deposit","at":"2026-09-12T21:02:10.433Z","approvedBy":"human"},{"merchant":"Netflix","amountCents":0,"category":"cancellation","at":"2026-09-12T21:02:19.499Z","approvedBy":"human"},{"merchant":"Netflix","amountCents":0,"category":"call","at":"2026-09-12T21:02:19.499Z","approvedBy":"policy"},{"merchant":"Nashville Lube and Tire","amountCents":0,"category":"call","at":"2026-09-12T21:02:27.201Z","approvedBy":"policy"},{"merchant":"Nashville Lube and Tire","amountCents":8900,"category":"service_booking","at":"2026-09-12T21:02:29.699Z","approvedBy":"human"},{"merchant":"Maria R.","amountCents":0,"category":"call","at":"2026-09-12T21:02:33.321Z","approvedBy":"policy"},{"merchant":"Maria R.","amountCents":3800,"category":"hire","counterpartyId":"maria-r","handover":true,"at":"2026-09-12T21:02:34.769Z","approvedBy":"human"},{"merchant":"Nashville Lube and Tire","amountCents":0,"category":"call","at":"2026-09-12T21:02:43.204Z","approvedBy":"policy"},{"merchant":"Maria R.","amountCents":0,"category":"call","at":"2026-09-12T21:02:45.544Z","approvedBy":"policy"},{"merchant":"Maria R.","amountCents":3800,"category":"hire","counterpartyId":"maria-r","handover":true,"at":"2026-09-12T21:02:47.642Z","approvedBy":"track-record"}]
 
 === Trust events ===
-[{"counterpartyId":"agent:restaurant_deposit","kind":"clean","detail":"restaurant_deposit","at":"2026-09-12T20:57:24.759Z"},{"counterpartyId":"agent:cancellation","kind":"clean","detail":"cancellation","at":"2026-09-12T20:57:33.619Z"},{"counterpartyId":"agent:service_booking","kind":"clean","detail":"service_booking","at":"2026-09-12T20:57:43.819Z"},{"counterpartyId":"maria-r","kind":"clean","detail":"screened","at":"2026-09-12T20:57:47.545Z"},{"counterpartyId":"maria-r","kind":"clean","detail":"handover","handover":true,"at":"2026-09-12T20:57:49.012Z"}]
+[{"counterpartyId":"agent:restaurant_deposit","kind":"clean","detail":"restaurant_deposit","at":"2026-09-12T21:02:10.433Z"},{"counterpartyId":"agent:cancellation","kind":"clean","detail":"cancellation","at":"2026-09-12T21:02:19.499Z"},{"counterpartyId":"agent:service_booking","kind":"clean","detail":"service_booking","at":"2026-09-12T21:02:29.699Z"},{"counterpartyId":"maria-r","kind":"clean","detail":"screened","at":"2026-09-12T21:02:33.323Z"},{"counterpartyId":"maria-r","kind":"clean","detail":"handover","handover":true,"at":"2026-09-12T21:02:34.769Z"},{"counterpartyId":"maria-r","kind":"clean","detail":"screened","at":"2026-09-12T21:02:45.544Z"},{"counterpartyId":"maria-r","kind":"clean","detail":"handover","handover":true,"at":"2026-09-12T21:02:47.642Z"}]

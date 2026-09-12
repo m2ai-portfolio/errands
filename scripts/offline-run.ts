@@ -37,7 +37,7 @@ const SENTENCES = [
   'Book dinner for 2 tonight at 7 PM at Bella Cucina in Nashville. If they are full, find somewhere comparable between 6:30 and 8:00 PM.',
   "Find everything I'm paying for monthly and cancel Netflix.",
   'Get Blurr, my 2019 Corvette, an oil change this week and have someone take it there and back.',
-  'Blurr needs to go back to the shop next Tuesday for the tire rotation they mentioned. Book it and have Maria take it again.',
+  'Book Blurr, my 2019 Corvette, for a tire rotation at Nashville Lube and Tire next Tuesday at 9:00 AM, pay whatever they quote, and hire Maria R. (tasker maria-r) to take it there and back like last time.',
 ]
 
 // Scripted call outcomes, keyed by the Vapi assistant name each errand module
