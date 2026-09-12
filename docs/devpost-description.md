@@ -37,7 +37,7 @@ Strands Agents SDK (TypeScript) runs the agent loop on Claude Sonnet 4.6 via Ama
 
 The gate is enforced twice. A Strands intervention is the point of intent: before every tool call it denies forbidden spend, lets notify spend through with a later notice, and pauses confirm spend for a human decision, injecting the code after you say yes. gate.commit() in the tool is the point of action: it re-runs the policy, validates the code against the merchant, amount, category, counterparty, and handover flag it was bound to, then writes the ledger and trust event.
 
-The phone calls, including the vet_tasker screen, are real outbound AI voice calls through Vapi. Payments run on Stripe test mode; connect_bank opens a Financial Connections session in the sandbox. The project ships 202 offline tests across 19 files, including an offline end-to-end run of all three errands.
+The phone calls, including the vet_tasker screen, are real outbound AI voice calls through Vapi. Payments run on Stripe test mode; connect_bank opens a Financial Connections session in the sandbox. The project ships 216 offline tests across 19 files, including an offline end-to-end run of all three errands.
 
 Safety in demo mode
 
