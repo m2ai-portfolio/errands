@@ -13,6 +13,7 @@ const policy: Policy = {
   approvalTtlMinutes: 30,
   stepUpCents: 5000,
   promoteAfter: 3,
+  promoteHumanAfter: 1,
   notifyCapCents: { restaurant_deposit: 2500 },
   vetting: {
     minRating: 4.7,

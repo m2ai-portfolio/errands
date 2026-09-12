@@ -22,6 +22,7 @@ export interface Policy {
   approvalTtlMinutes: number
   stepUpCents: number
   promoteAfter: number
+  promoteHumanAfter: number
   notifyCapCents: Record<string, number>
   vetting: VettingPolicy
   counterparties: Record<string, CounterpartyGrant>
@@ -118,7 +119,7 @@ export function createGate(
       counterpartyOf(request),
       policy.counterparties,
       events,
-      policy.promoteAfter,
+      request.counterpartyId ? policy.promoteHumanAfter : policy.promoteAfter,
       request.counterpartyId ? 'unknown' : 'screened',
     )
 

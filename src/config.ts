@@ -27,6 +27,7 @@ const PolicySchema = z
     approvalTtlMinutes: z.number().int().positive(),
     stepUpCents: z.number().int().nonnegative(),
     promoteAfter: z.number().int().positive(),
+    promoteHumanAfter: z.number().int().positive().default(1),
     notifyCapCents: z.record(z.string(), z.number().int().nonnegative()),
     vetting: VettingSchema,
     counterparties: z.record(

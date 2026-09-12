@@ -177,6 +177,11 @@ describe('loadConfig', () => {
     )
   })
 
+  it('defaults promoteHumanAfter to 1 when the policy file omits it', () => {
+    const config = loadConfig({ VAPI_API_KEY: 'k' }, paths)
+    expect(config.policy.promoteHumanAfter).toBe(1)
+  })
+
   it('rejects a policy missing the trust fields', () => {
     const incompletePolicyPath = join(dir, 'policy-missing-trust-fields.json')
     writeFileSync(

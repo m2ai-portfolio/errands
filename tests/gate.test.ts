@@ -9,6 +9,7 @@ const policy: Policy = {
   approvalTtlMinutes: 30,
   stepUpCents: 5000,
   promoteAfter: 3,
+  promoteHumanAfter: 1,
   notifyCapCents: { restaurant_deposit: 2500 },
   vetting: {
     minRating: 4.7,
@@ -240,6 +241,35 @@ describe('trust ladder', () => {
     const fourth = gate.evaluate(deposit(), days(3))
     expect(fourth).toMatchObject({ decision: 'notify', reason: 'TRACK_RECORD', rung: 'proven' })
     expect(gate.commit(deposit(), days(3)).approvedBy).toBe('track-record')
+  })
+
+  it('a human promotes to proven after one clean approved hire (promoteHumanAfter)', () => {
+    const gate = createGate(policy)
+    gate.recordScreened('maria-r', t0)
+    const code = gate.requestApproval(hire({ handover: true }), minutes(1)).code
+    gate.commit(hire({ handover: true }), minutes(1), code)
+    expect(gate.rungFor(hire({ handover: true }))).toBe('proven')
+    const withCap: Policy = { ...policy, notifyCapCents: { ...policy.notifyCapCents, hire: 5000 } }
+    const gate2 = createGate(withCap)
+    gate2.recordScreened('maria-r', t0)
+    const code2 = gate2.requestApproval(hire({ handover: true }), minutes(1)).code
+    gate2.commit(hire({ handover: true }), minutes(1), code2)
+    expect(gate2.evaluate(hire({ handover: true }), minutes(2))).toMatchObject({
+      decision: 'notify',
+      reason: 'TRACK_RECORD',
+    })
+  })
+
+  it('the agent still needs promoteAfter (3) clean deposits, unaffected by promoteHumanAfter', () => {
+    const gate = createGate(policy)
+    for (let i = 0; i < 2; i += 1) {
+      const code = gate.requestApproval(deposit(), days(i)).code
+      gate.commit(deposit(), days(i), code)
+    }
+    expect(gate.evaluate(deposit(), days(2)).decision).toBe('confirm')
+    const code = gate.requestApproval(deposit(), days(2)).code
+    gate.commit(deposit(), days(2), code)
+    expect(gate.evaluate(deposit(), days(3)).decision).toBe('notify')
   })
 
   it('an incident resets the track record', () => {
