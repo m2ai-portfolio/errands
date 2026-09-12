@@ -189,17 +189,17 @@ describe('hero errand: dinner with a fallback', () => {
     await h.use('call_restaurant', { restaurantId: 'fixture-trattoria-roma', ...reservation })
     expect(
       await h.use('pay_deposit', { restaurantId: 'fixture-trattoria-roma', amountCents: 1000 }),
-    ).toEqual({ denied: 'Spending gate: SPEND_INPUT_INVALID' })
+    ).toEqual({ denied: 'Spending gate: SPEND_INPUT_INVALID: AMOUNT_NOT_QUOTED' })
     expect(
       await h.use('pay_deposit', { restaurantId: 'fixture-bella-cucina', amountCents: 1500 }),
-    ).toEqual({ denied: 'Spending gate: SPEND_INPUT_INVALID' })
+    ).toEqual({ denied: 'Spending gate: SPEND_INPUT_INVALID: NO_DEPOSIT_QUOTED' })
     expect(h.prompts).toHaveLength(0)
   })
 
   it('cannot call a restaurant it never found, and stops after three calls', async () => {
     const h = harness({ approve: true })
     expect(await h.use('call_restaurant', { restaurantId: 'made-up', ...reservation })).toEqual({
-      denied: 'Spending gate: SPEND_INPUT_INVALID',
+      denied: 'Spending gate: SPEND_INPUT_INVALID: UNKNOWN_RESTAURANT',
     })
     await h.use('search_restaurants', { query: 'restaurant italian mexican' })
     for (const id of ['fixture-bella-cucina', 'fixture-trattoria-roma', 'fixture-taco-town']) {
