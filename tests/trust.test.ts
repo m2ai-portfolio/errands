@@ -87,7 +87,6 @@ const policy = {
   minJobs: 50,
   requireBackgroundCheck: true,
   requireInsuredFor: { vehicle: true },
-  phoneScreenRequired: true,
 }
 const maria: TaskerProfile = {
   id: 'maria-r',

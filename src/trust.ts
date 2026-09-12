@@ -22,7 +22,6 @@ export interface VettingPolicy {
   minJobs: number
   requireBackgroundCheck: boolean
   requireInsuredFor: Record<string, boolean>
-  phoneScreenRequired: boolean
 }
 
 export interface TaskerProfile {

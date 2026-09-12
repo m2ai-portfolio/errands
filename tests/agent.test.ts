@@ -20,7 +20,6 @@ const policy: Policy = {
     minJobs: 50,
     requireBackgroundCheck: true,
     requireInsuredFor: { vehicle: true },
-    phoneScreenRequired: true,
   },
   counterparties: {},
   categories: { call: 'allow', restaurant_deposit: 'confirm', gift: 'forbid' },
@@ -64,5 +63,14 @@ describe('mergeSpendTools', () => {
     const merged = mergeSpendTools([dinner])
     expect(merged.has('pay_deposit')).toBe(true)
     expect(merged.has('call_restaurant')).toBe(true)
+  })
+
+  it('throws instead of letting a later module win a tool-name collision', () => {
+    // Two modules shipping the same spend-tool name would silently hand the
+    // gate the wrong mapper for a real spend: the later module's mapper would
+    // evaluate the earlier module's tool call. Fail at construction.
+    const dinner = buildDinner()
+    const clash = buildDinner()
+    expect(() => mergeSpendTools([dinner, clash])).toThrow('DUPLICATE_SPEND_TOOL_call_restaurant')
   })
 })

@@ -32,10 +32,17 @@ export function systemPrompt(customerName: string, modules: ErrandModule[]): str
 
 // Merges every module's spend-tool map into one, so a single SpendingGateIntervention
 // can see the whole agent's spend surface. Errand tool names are unique across modules
-// today; a later collision would silently let the later module win.
+// today. A collision must not be silent: the later module would win the mapper while
+// the earlier module still owns the tool, so the gate would evaluate the wrong request
+// for a real spend. Fail at construction instead.
 export function mergeSpendTools(modules: ErrandModule[]): Map<string, SpendInputMapper> {
   const spendTools = new Map<string, SpendInputMapper>()
-  for (const m of modules) for (const [k, v] of m.spendTools) spendTools.set(k, v)
+  for (const m of modules) {
+    for (const [k, v] of m.spendTools) {
+      if (spendTools.has(k)) throw new Error(`DUPLICATE_SPEND_TOOL_${k}`)
+      spendTools.set(k, v)
+    }
+  }
   return spendTools
 }
 
@@ -49,10 +56,21 @@ export function createErrandsAgent(deps: ErrandDeps, bedrock: ErrandsConfig['bed
     deps.notify,
     deps.now,
   )
+  // Same rule for the tool list itself: two modules shipping the same tool name
+  // would send Bedrock a duplicate definition and make which one runs a
+  // question of ordering.
+  const tools = deps.modules.flatMap((m) => m.tools)
+  const seen = new Set<string>()
+  for (const t of tools) {
+    const name = (t as { name?: unknown }).name
+    if (typeof name !== 'string') continue
+    if (seen.has(name)) throw new Error(`DUPLICATE_SPEND_TOOL_${name}`)
+    seen.add(name)
+  }
   return new Agent({
     model: new BedrockModel({ region: bedrock.region, modelId: bedrock.modelId, maxTokens: 2048 }),
     systemPrompt: systemPrompt(deps.customerName, deps.modules),
-    tools: deps.modules.flatMap((m) => m.tools),
+    tools,
     interventions: [intervention],
   })
 }

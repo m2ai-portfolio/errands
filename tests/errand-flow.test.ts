@@ -28,7 +28,6 @@ const policy: Policy = {
     minJobs: 50,
     requireBackgroundCheck: true,
     requireInsuredFor: { vehicle: true },
-    phoneScreenRequired: true,
   },
   counterparties: {},
   categories: { call: 'allow', restaurant_deposit: 'confirm', gift: 'forbid' },
@@ -153,7 +152,7 @@ describe('hero errand: dinner with a fallback', () => {
 
     expect(h.dialed).toEqual(['+15025550100', '+15025550101'])
     expect(h.prompts).toEqual([
-      'Errands wants to spend $15.00 (restaurant_deposit) at Trattoria Roma. Approve?',
+      'Errands wants to spend $15.00 (restaurant deposit) at Trattoria Roma. Approve?',
     ])
     expect(h.charges).toEqual([
       {

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { sanitizeForPrompt } from '../sanitize.js'
 import { assistantBase, type VoiceConfig } from './phone.js'
 
 export interface CancellationRequest {
@@ -56,25 +57,12 @@ function formatDollars(amountCents: number): string {
   return `$${(amountCents / 100).toFixed(2)}`
 }
 
-const MAX_PROMPT_TEXT_LENGTH = 60
-
 // The merchant name traces back to a bank transaction description, which is
-// data the customer's bank sent us, not something Errands wrote. Before it
-// enters any model-facing prompt or evidence string it is stripped down to
-// printable, single-line, length-capped text so it cannot smuggle control
-// characters or a long injected instruction into an instruction-bearing
-// prompt.
-export function sanitizeForPrompt(text: string): string {
-  // Strip C0/C1 control characters (includes \n, \r, \t, ESC) plus every
-  // Unicode format character, line/paragraph separator, zero-width space,
-  // joiner, and bidi override/isolate control (\p{Cc}\p{Cf}\p{Zl}\p{Zp}).
-  // A pure C0/C1 filter let zero-width and bidi controls through unchanged,
-  // letting an injected instruction survive byte-identical through this
-  // filter and the length cap.
-  const printableOnly = text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '')
-  const collapsed = printableOnly.replace(/\s+/g, ' ').trim()
-  return collapsed.slice(0, MAX_PROMPT_TEXT_LENGTH)
-}
+// data the customer's bank sent us, not something Errands wrote. The shared
+// sanitizer in src/sanitize.ts is re-exported here so every existing import
+// keeps working; it is applied to every prompt-bound string, including the
+// human approval prompt.
+export { sanitizeForPrompt }
 
 export function buildCancellationAssistant(req: CancellationRequest, voice: VoiceConfig) {
   const amount = formatDollars(req.amountCents)

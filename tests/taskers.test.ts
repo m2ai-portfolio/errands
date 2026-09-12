@@ -12,7 +12,6 @@ const policy: VettingPolicy = {
   minJobs: 50,
   requireBackgroundCheck: true,
   requireInsuredFor: { vehicle: true },
-  phoneScreenRequired: true,
 }
 
 describe('FixtureTaskers', () => {

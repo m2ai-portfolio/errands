@@ -29,9 +29,9 @@ A counterparty is anyone acting on your behalf: the agent itself in a spend cate
 
 Four rules never relax, whatever the rung:
 
-1. **Caps are absolute.** Spend over the per-transaction cap of $100, or that would breach the rolling 24-hour cap of $150 or the rolling 7-day cap of $250, is refused outright. There is no approval that overrides a cap.
+1. **Caps are absolute.** Spend over the per-transaction cap of $100, or that would breach the rolling 24-hour cap of $200 or the rolling 7-day cap of $250, is refused outright. There is no approval that overrides a cap.
 2. **A first handover of your property always asks.** The first time a person would hold your keys, the agent stops and asks you, even if that person is marked `trusted`.
-3. **`unknown` always asks, and an unknown human cannot be hired at all.** A hire whose counterparty is still on the `unknown` rung is refused by the gate, not escalated to you.
+3. **Nothing spends off an `unknown` counterparty.** For a named human the gate refuses outright: a hire whose counterparty is still on the `unknown` rung never reaches you as a question. For the agent itself in a spend category, `unknown` means every spend stops and asks you first; it never proceeds on its own.
 4. **At or above $50, the code arrives on a second channel.** The approval code is delivered out of band (Telegram, or stderr in the console demo) and you have to type it back. The model never sees the code, and any code it tries to supply is thrown away.
 
 Evidence, not vibes, moves a counterparty up. A human is promoted after one clean job. The agent is promoted after three clean approvals in a category. Any incident drops the counterparty one rung and resets the clean count. `trusted` is never earned; it is only ever granted by hand in `policy.json`.
@@ -142,7 +142,7 @@ The rules live in `policy.json`, checked in so anyone can read them:
 {
   "enabled": true,
   "perTransactionCapCents": 10000,
-  "dailyCapCents": 15000,
+  "dailyCapCents": 20000,
   "weeklyCapCents": 25000,
   "approvalTtlMinutes": 30,
   "stepUpCents": 5000,
@@ -153,8 +153,7 @@ The rules live in `policy.json`, checked in so anyone can read them:
     "minRating": 4.7,
     "minJobs": 50,
     "requireBackgroundCheck": true,
-    "requireInsuredFor": { "vehicle": true },
-    "phoneScreenRequired": true
+    "requireInsuredFor": { "vehicle": true }
   },
   "counterparties": {},
   "categories": {
@@ -168,7 +167,7 @@ The rules live in `policy.json`, checked in so anyone can read them:
 }
 ```
 
-`enabled: false` is the kill switch: every request is refused.
+`enabled: false` is the kill switch: every request is refused. There is no `phoneScreenRequired` knob: the phone screen is not optional, it is enforced by the Blurr module itself, which refuses to hire anyone with no stored passing screen.
 
 ## Safety in demo mode
 
@@ -181,7 +180,7 @@ Judges can run this, so everything public runs sandboxed:
 ## Limitations we know about
 
 - **The quote comes from the call.** The amount you are asked to approve is extracted from the call's structured analysis, so a bad extraction could put a wrong number in front of you. That is why a human sees it before anything is paid, and why the payment tool refuses any amount that does not equal the extracted quote.
-- **The bank consent page is a manual browser step.** You open the page and click through Stripe's flow yourself. It is not automated, and it is not covered by the tests.
+- **The bank consent page is a manual browser step.** You open the page and click through Stripe's flow yourself. The page's own server and token logic are unit-tested in `tests/connect-page.test.ts`; what is not covered is the live Stripe click-through itself, which needs a real browser against Stripe's test institution.
 - **Live bank data is not available.** Financial Connections in live mode needs Stripe registration we do not have, so bank access is sandbox only.
 - **Telegram step-up needs setup.** The second channel is Telegram, which needs a bot token and a chat id. Without them the code falls back to the console channel, which prints to stderr.
 
@@ -192,7 +191,7 @@ Requirements: Node.js 22+, an AWS account with Bedrock access to Claude Sonnet 4
 ```bash
 git clone https://github.com/m2ai-portfolio/errands && cd errands
 npm install
-npm test                                   # 202 offline tests in 19 files, no keys needed
+npm test                                   # 208 offline tests in 19 files, no keys needed
 ```
 
 | Variable                   | What it does                                                                                                             |
@@ -210,6 +209,7 @@ npm test                                   # 202 offline tests in 19 files, no k
 | `ERRANDS_LAN_HOST`         | Host the bank consent page is served on. Default `10.0.0.46`, never localhost.                                           |
 | `ERRANDS_APPROVE`          | `yes` or `no` answers every prompt without a terminal. It cannot approve a $50 or larger step-up: by design it declines. |
 | `ERRANDS_CUSTOMER_NAME`    | The name the AI caller gives. Default `Alex`.                                                                            |
+| `ERRANDS_CALLER_VOICE`     | A JSON `VoiceConfig` overriding the AI caller's voice. Default is the built-in Cartesia voice.                           |
 | `ERRANDS_STRIPE_CUSTOMER`  | Reuse an existing test-mode Stripe customer instead of making a new one.                                                 |
 | `TELEGRAM_BOT_TOKEN`       | With `TELEGRAM_CHAT_ID`, the second channel for step-up codes.                                                           |
 | `TELEGRAM_CHAT_ID`         | The chat the step-up code is sent to.                                                                                    |
@@ -264,7 +264,7 @@ This repository was created and written during the hackathon Submission Period (
 | `policy.json`                  | The spending and vetting rules, checked in                                |
 | `fixtures/`                    | Restaurants, shops, taskers, bank transactions                            |
 | `scripts/offline-run.ts`       | Scripted end-to-end run for anyone without Vapi or Stripe keys            |
-| `tests/`                       | 202 offline tests across 19 files                                         |
+| `tests/`                       | 208 offline tests across 19 files                                         |
 
 ## License
 

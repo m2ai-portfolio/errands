@@ -47,7 +47,7 @@ const NOW = new Date('2026-09-12T15:00:00Z')
 type ToolName =
   'find_shops' | 'book_service' | 'pay_service' | 'find_taskers' | 'vet_tasker' | 'hire_tasker'
 
-function harness(opts: { approve?: boolean; outcomes?: unknown[] } = {}) {
+function harness(opts: { approve?: boolean; outcomes?: unknown[]; maxCalls?: number } = {}) {
   const approve = opts.approve ?? true
   const dialed: string[] = []
   const charges: DepositCharge[] = []
@@ -85,6 +85,7 @@ function harness(opts: { approve?: boolean; outcomes?: unknown[] } = {}) {
     vetting: policy.vetting,
     now: () => NOW,
     errandId: 'errand-test',
+    ...(opts.maxCalls === undefined ? {} : { maxCalls: opts.maxCalls }),
   })
   const intervention = new SpendingGateIntervention(
     gate,
@@ -152,7 +153,7 @@ describe('blurr errand: oil change plus a hired driver', () => {
       triedFirst: 'called the shop, which quoted this amount',
     })
     // The stepUp channel only fires when the evaluation said stepUp, so its
-    // one entry is the evidence (re-evaluating now would hit the daily cap).
+    // one entry is the evidence.
 
     // Hiring an unscreened human is refused by the mapper, before the gate sees it.
     expect(await h.use('hire_tasker', { taskerId: 'maria-r' })).toEqual({
@@ -190,7 +191,8 @@ describe('blurr errand: oil change plus a hired driver', () => {
       status: 'hired',
       tasker: 'Maria R.',
       amountCents: 3800,
-      slot: 'Tuesday 8:00 AM',
+      // The BOOKED slot, not the 'Tuesday 8:00 AM' the model passed to vet_tasker.
+      slot: 'Tuesday 9:00 AM',
     })
 
     const ledger = h.gate.ledger()
@@ -273,8 +275,12 @@ describe('blurr errand: oil change plus a hired driver', () => {
 
   it('a screen the tasker fails leaves them unhireable', async () => {
     const h = harness({
-      outcomes: [{ available: true, answers: { manual: false, insurance: true, slot: true } }],
+      outcomes: [
+        SERVICE,
+        { available: true, answers: { manual: false, insurance: true, slot: true } },
+      ],
     })
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
     const screened = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
     expect(screened).toMatchObject({ passed: false, failures: ['SCREEN_ANSWER_manual'] })
     expect(await h.use('hire_tasker', { taskerId: 'maria-r' })).toEqual({
@@ -284,7 +290,8 @@ describe('blurr errand: oil change plus a hired driver', () => {
   })
 
   it('records a screen at most once per tasker, even after passing twice', async () => {
-    const h = harness({ outcomes: [SCREEN, SCREEN] })
+    const h = harness({ outcomes: [SERVICE, SCREEN, SCREEN] })
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
     await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
     await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
     const screenedEvents = h.gate
@@ -294,13 +301,18 @@ describe('blurr errand: oil change plus a hired driver', () => {
   })
 
   it('records a screen at most once per tasker, even after failing and passing again', async () => {
+    // Four calls: one booking plus three screens. maxCalls is a test-only
+    // budget; the shipped cap of 3 is what every other test and the demo run on.
     const h = harness({
+      maxCalls: 4,
       outcomes: [
+        SERVICE,
         SCREEN,
         { available: true, answers: { manual: false, insurance: true, slot: true }, notes: '' },
         SCREEN,
       ],
     })
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
     const first = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
     expect(first).toMatchObject({ passed: true })
     const second = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
@@ -316,6 +328,50 @@ describe('blurr errand: oil change plus a hired driver', () => {
       status: 'hired',
       tasker: 'Maria R.',
     })
+  })
+
+  it('refuses to screen a driver before any shop has booked a slot', async () => {
+    const h = harness()
+    // No book_service yet, so there is no appointment to screen anyone against.
+    expect(
+      await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'any weekday this week' }),
+    ).toEqual({ status: 'refused', reason: 'NO_BOOKING_YET' })
+    expect(h.dialed).toHaveLength(0)
+    // And the refusal is not a dead end: once the shop books, the screen runs
+    // against the shop's slot, not the free text the model passed in.
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    const screened = await h.use('vet_tasker', {
+      taskerId: 'maria-r',
+      slot: 'any weekday this week',
+    })
+    expect(screened).toMatchObject({ passed: true })
+    const hired = await h.use('hire_tasker', { taskerId: 'maria-r' })
+    expect(hired).toMatchObject({ status: 'hired', slot: 'Tuesday 9:00 AM' })
+  })
+
+  it('records an incident against the counterparty when the human declines a hire', async () => {
+    const h = harness({ approve: false })
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
+    await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
+    expect(h.gate.rungFor(HIRE_REQUEST)).toBe('screened')
+
+    expect(await h.use('hire_tasker', { taskerId: 'maria-r' })).toEqual({
+      denied: 'Spending gate: HUMAN_DECLINED',
+    })
+
+    const incidents = h.gate
+      .events()
+      .filter((e) => e.counterpartyId === 'maria-r' && e.kind === 'incident')
+    expect(incidents).toHaveLength(1)
+    expect(incidents[0]).toMatchObject({ detail: 'human declined' })
+    // The decline costs a rung, so the same hire is now refused outright
+    // instead of asked again.
+    expect(h.gate.rungFor(HIRE_REQUEST)).toBe('unknown')
+    expect(h.gate.evaluate(HIRE_REQUEST, NOW)).toMatchObject({
+      decision: 'forbid',
+      reason: 'COUNTERPARTY_UNKNOWN',
+    })
+    expect(h.charges).toHaveLength(0)
   })
 
   it('refuses a second payment for a shop already paid', async () => {
@@ -341,10 +397,12 @@ describe('blurr errand: oil change plus a hired driver', () => {
   it('a later failed screen invalidates an earlier passed one', async () => {
     const h = harness({
       outcomes: [
+        SERVICE,
         SCREEN,
         { available: true, answers: { manual: false, insurance: true, slot: true } },
       ],
     })
+    await h.use('book_service', { shopId: 'nashville-lube', ...booking })
     const first = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })
     expect(first).toMatchObject({ passed: true })
     const second = await h.use('vet_tasker', { taskerId: 'maria-r', slot: 'Tuesday 8:00 AM' })

@@ -57,12 +57,16 @@ export interface BlurrDeps {
   now?: () => Date
   log?: (line: string) => void
   errandId?: string
+  // Call budget for this module instance. Defaults to the shipped cap; nothing
+  // in src/ overrides it, it exists so a test can book a shop AND run several
+  // screens inside one harness.
+  maxCalls?: number
 }
 
 const promptLines = [
   '1. Use find_shops for the service the customer needs, then book_service with the first shop on the list.',
   '2. If that call comes back with a quote, call pay_service with that shop id and exactly the amount it quoted. Never invent or round amounts. Leave approvalCode empty: the approval system fills it in after the human decides.',
-  '3. Use find_taskers for the task class "vehicle" to see who could drive the car.',
+  '3. Use find_taskers for the task class "vehicle" to see who could drive the car. Do this only after a shop has booked a slot: vet_tasker screens the driver against the slot the shop agreed to, and is refused with NO_BOOKING_YET before that.',
   `4. Call vet_tasker on candidates in the order returned until one passes. You may make at most ${MAX_CALLS_PER_ERRAND} calls in total across book_service and vet_tasker.`,
   '5. Call hire_tasker only for the tasker whose screen passed. An unscreened person can never be hired.',
   '6. Finish with the slot, the shop confirmation, who is driving the car, what it cost, and how to cancel both the appointment and the driver.',
@@ -85,7 +89,12 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
   const screens = new Map<string, { slot: string }>()
   const paidShops = new Set<string>()
   const screenedRecorded = new Set<string>()
+  const maxCalls = deps.maxCalls ?? MAX_CALLS_PER_ERRAND
   let callsMade = 0
+  // The slot the shop actually agreed to, from the most recent booked call.
+  // This, not the model's free-text `slot`, is what a driver is screened
+  // against and what the hire is recorded for.
+  let bookedSlot: string | null = null
 
   const policy: DestinationPolicy =
     deps.config.mode === 'demo'
@@ -140,8 +149,7 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
 
     async book(input: z.infer<typeof BookInput>): Promise<Json> {
       const shop = lookupShop(input.shopId)
-      if (callsMade >= MAX_CALLS_PER_ERRAND)
-        return { status: 'refused', reason: 'CALL_LIMIT_REACHED' }
+      if (callsMade >= maxCalls) return { status: 'refused', reason: 'CALL_LIMIT_REACHED' }
       let to: string
       try {
         to = destination(shop.phone)
@@ -169,11 +177,19 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
         ),
       })
       const outcome = parseOutcome(ServiceOutcomeSchema, result.structuredData)
-      if (outcome?.booked)
+      if (outcome?.booked) {
         bookings.set(shop.id, { quoteCents: outcome.quoteCents, slot: outcome.slot })
-      // A later not-booked (or unclear) call invalidates an earlier stored
-      // quote: nobody stays payable off a booking that no longer stands.
-      else bookings.delete(shop.id)
+        if (outcome.slot) bookedSlot = outcome.slot
+      } else {
+        // A later not-booked (or unclear) call invalidates an earlier stored
+        // quote: nobody stays payable off a booking that no longer stands.
+        bookings.delete(shop.id)
+        bookedSlot =
+          [...bookings.values()]
+            .map((b) => b.slot)
+            .filter((x) => x !== null)
+            .at(-1) ?? null
+      }
       log(
         `${shop.name}: ${outcome ? (outcome.booked ? `booked ${outcome.slot ?? ''}` : 'not booked') : 'no clear outcome'}`,
       )
@@ -236,9 +252,16 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
       }))
     },
 
-    // Paper vetting first, so a tasker who cannot pass the policy is never phoned.
+    // Paper vetting first, so a tasker who cannot pass the policy is never
+    // phoned. Before any of that: there has to be a real appointment. The
+    // model may pass `input.slot`, and it is kept so the schema still reads
+    // naturally to the model, but the BOOKED slot always wins. Screening a
+    // driver for a slot the shop never agreed to produces a "yes, I can make
+    // it" about an appointment that does not exist.
     async vet(input: z.infer<typeof VetInput>): Promise<Json> {
       const profile = lookupTasker(input.taskerId)
+      if (bookedSlot === null) return { status: 'refused', reason: 'NO_BOOKING_YET' }
+      const slot = bookedSlot
       const paper = vet(profile, deps.vetting, TASK_CLASS)
       if (!paper.passed) {
         log(`${profile.name} failed vetting: ${paper.failures.join(', ')}`)
@@ -247,8 +270,7 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
         screens.delete(profile.id)
         return { passed: false, failures: paper.failures }
       }
-      if (callsMade >= MAX_CALLS_PER_ERRAND)
-        return { status: 'refused', reason: 'CALL_LIMIT_REACHED' }
+      if (callsMade >= maxCalls) return { status: 'refused', reason: 'CALL_LIMIT_REACHED' }
       let to: string
       try {
         to = destination(profile.phone)
@@ -269,7 +291,7 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
             taskerName: profile.name,
             customerName: deps.config.customerName,
             task: SCREEN_TASK,
-            slot: input.slot,
+            slot,
             questions: [...SCREEN_QUESTIONS],
           },
           deps.voice,
@@ -295,7 +317,7 @@ export function blurrErrand(deps: BlurrDeps): ErrandModule & {
           deps.gate.recordScreened(profile.id, now())
           screenedRecorded.add(profile.id)
         }
-        screens.set(profile.id, { slot: input.slot })
+        screens.set(profile.id, { slot })
       } else {
         // A later failed screen invalidates any earlier passed one.
         screens.delete(profile.id)

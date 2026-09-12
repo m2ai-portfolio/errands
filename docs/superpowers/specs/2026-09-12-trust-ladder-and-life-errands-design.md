@@ -67,8 +67,7 @@ The ledger gains a `trustEvents` table: `{ counterpartyId, kind: 'clean' | 'inci
   "minRating": 4.7,
   "minJobs": 50,
   "requireBackgroundCheck": true,
-  "requireInsuredFor": { "vehicle": true },
-  "phoneScreenRequired": true
+  "requireInsuredFor": { "vehicle": true }
 }
 ```
 
@@ -84,7 +83,7 @@ The ledger gains a `trustEvents` table: `{ counterpartyId, kind: 'clean' | 'inci
 {
   "enabled": true,
   "perTransactionCapCents": 10000,
-  "dailyCapCents": 15000,
+  "dailyCapCents": 20000,
   "weeklyCapCents": 25000,
   "approvalTtlMinutes": 30,
   "stepUpCents": 5000,

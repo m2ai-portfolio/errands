@@ -1,6 +1,7 @@
 import { InterventionActions, InterventionHandler } from '@strands-agents/sdk'
 import type { BeforeToolCallEvent, OnError } from '@strands-agents/sdk'
 import type { Gate, SpendRequest } from './gate.js'
+import { sanitizeForPrompt } from './sanitize.js'
 import type { StepUpChannel } from './stepup.js'
 
 // Point of intent: this intervention runs before EVERY tool call the model makes.
@@ -21,6 +22,30 @@ const isObject = (value: unknown): value is JsonObject =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 export const formatCents = (cents: number): string => `$${(cents / 100).toFixed(2)}`
+
+// Human copy for a spend category. The raw key is a policy identifier, not
+// something to show a person mid-decision.
+const CATEGORY_LABELS: Readonly<Record<string, string>> = {
+  restaurant_deposit: 'restaurant deposit',
+  service_booking: 'service booking',
+  call: 'phone call',
+}
+
+const categoryLabel = (category: string): string =>
+  CATEGORY_LABELS[category] ?? category.replace(/_/g, ' ')
+
+// "Maria R." already ends in a period; appending another gives "Maria R..".
+const noTrailingPeriod = (text: string): string => text.replace(/\.+$/, '')
+
+// One sentence per category, because "$0.00 (cancellation) at Netflix" is not
+// what is actually being decided. The amount is dropped where it is always
+// zero, and the raw category key never reaches the human.
+export function describeSpend(category: string, who: string, amountCents: number): string {
+  const name = noTrailingPeriod(who)
+  if (category === 'cancellation') return `Errands wants to cancel your ${name} subscription.`
+  if (category === 'hire') return `Errands wants to hire ${name} for ${formatCents(amountCents)}.`
+  return `Errands wants to spend ${formatCents(amountCents)} (${categoryLabel(category)}) at ${name}.`
+}
 
 export class SpendingGateIntervention extends InterventionHandler {
   readonly name = 'errands:spending-gate'
@@ -70,12 +95,13 @@ export class SpendingGateIntervention extends InterventionHandler {
       return InterventionActions.transform(setInput(cleanInput), { reason: evaluation.reason })
     }
 
-    const who = request.merchant
-    const what = `${formatCents(request.amountCents)} (${request.category})`
+    // Display only. The bound request keeps the raw merchant, because the
+    // approval code is bound to it and checkApproval compares the raw value.
+    const who = sanitizeForPrompt(request.merchant)
 
     if (evaluation.decision === 'notify') {
       this.notify(
-        `Errands is spending ${what} at ${who} on its track record (rung ${evaluation.rung}). No approval needed.`,
+        `Errands is spending ${formatCents(request.amountCents)} (${request.category}) at ${who} on its track record (rung ${evaluation.rung}). No approval needed.`,
       )
       return InterventionActions.transform(setInput(cleanInput), { reason: evaluation.reason })
     }
@@ -85,7 +111,7 @@ export class SpendingGateIntervention extends InterventionHandler {
       evaluation.reason === 'FIRST_HANDOVER'
         ? ' This is the first time they would hold your property.'
         : ''
-    const prompt = `Errands wants to spend ${what} at ${who}.${evidence ? ` ${evidence}.` : ''}${why} Approve?`
+    const prompt = `${describeSpend(request.category, who, request.amountCents)}${evidence ? ` ${evidence}.` : ''}${why} Approve?`
 
     let approved: boolean
     if (evaluation.stepUp) {
@@ -100,7 +126,15 @@ export class SpendingGateIntervention extends InterventionHandler {
       approved = await this.askHuman(prompt)
     }
 
-    if (!approved) return InterventionActions.deny('Spending gate: HUMAN_DECLINED')
+    if (!approved) {
+      // Spec rule: "human declined after vetting" is an incident. Without this
+      // the down-rung half of the trust ladder is never reachable in the
+      // product; a counterparty the human just refused would keep its rung.
+      if (request.counterpartyId) {
+        this.gate.recordIncident(request.counterpartyId, 'human declined', at)
+      }
+      return InterventionActions.deny('Spending gate: HUMAN_DECLINED')
+    }
     return InterventionActions.transform(setInput({ ...cleanInput, approvalCode: approval.code }), {
       reason: 'HUMAN_APPROVED',
     })

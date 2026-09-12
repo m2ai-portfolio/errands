@@ -23,7 +23,6 @@ writeFileSync(
       minJobs: 50,
       requireBackgroundCheck: true,
       requireInsuredFor: { vehicle: true },
-      phoneScreenRequired: true,
     },
     counterparties: {},
     categories: { call: 'allow', restaurant_deposit: 'confirm' },
@@ -166,7 +165,6 @@ describe('loadConfig', () => {
           minJobs: 50,
           requireBackgroundCheck: true,
           requireInsuredFor: { vehicle: true },
-          phoneScreenRequired: true,
         },
         counterparties: {},
         categories: { call: 'allow', service_booking: 'confirm' },
@@ -199,7 +197,6 @@ describe('loadConfig', () => {
           minJobs: 50,
           requireBackgroundCheck: true,
           requireInsuredFor: { vehicle: true },
-          phoneScreenRequired: true,
         },
         counterparties: {},
         categories: {

@@ -15,7 +15,6 @@ const VettingSchema = z.object({
   minJobs: z.number().int().nonnegative(),
   requireBackgroundCheck: z.boolean(),
   requireInsuredFor: z.record(z.string(), z.boolean()),
-  phoneScreenRequired: z.boolean(),
 })
 
 const PolicySchema = z

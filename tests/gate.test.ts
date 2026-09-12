@@ -16,7 +16,6 @@ const policy: Policy = {
     minJobs: 50,
     requireBackgroundCheck: true,
     requireInsuredFor: { vehicle: true },
-    phoneScreenRequired: true,
   },
   counterparties: {},
   categories: {

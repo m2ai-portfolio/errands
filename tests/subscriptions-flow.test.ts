@@ -133,7 +133,7 @@ describe('subscription errand: connect, list, cancel', () => {
     })
     expect(h.dialed).toEqual([SWITCHBOARD])
     expect(h.prompts).toEqual([
-      'Errands wants to spend $0.00 (cancellation) at Netflix. $15.49 monthly, last charged 2026-08-16. Approve?',
+      'Errands wants to cancel your Netflix subscription. $15.49 monthly, last charged 2026-08-16. Approve?',
     ])
     expect(h.gate.ledger().map((e) => `${e.category}:${e.approvedBy}`)).toEqual([
       'cancellation:human',
