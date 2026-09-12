@@ -24,7 +24,7 @@ The trust ladder
 
 A counterparty is anyone acting on your behalf: the agent in a spend category, or a human it wants to hire. Unknown has no evidence; nothing passes without asking. Screened has passed vetting or is a known category, and still asks every time. Proven has a track record, so spend at or under the notify cap proceeds, and you are told after. Trusted is granted by hand in policy.json. Four rules never relax:
 
-- Caps are absolute: over $100 per transaction, or breaching the $150 rolling 24-hour or $250 rolling 7-day cap, is refused outright.
+- Caps are absolute: over $100 per transaction, or breaching the $200 rolling 24-hour or $250 rolling 7-day cap, is refused outright.
 - A first handover of your property always asks, even if trusted.
 - Unknown always asks, and an unknown human cannot be hired.
 - At or above $50, the code arrives on a second channel and you type it back.
