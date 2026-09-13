@@ -548,7 +548,13 @@ const FindShopsInput = z.object({
 
 const BookInput = z.object({
   shopId: z.string().describe('An id returned by find_shops'),
-  vehicle: z.string().min(2).max(80).describe('Year, make and model, e.g. "2016 Honda Civic"'),
+  vehicle: z
+    .string()
+    .min(2)
+    .max(80)
+    .describe(
+      'Whatever the customer called the car, verbatim. Do not ask for year, make or model if the customer did not give them.',
+    ),
   service: z.string().min(2).max(80).describe('The work to book, e.g. "oil change"'),
   window: z.string().min(1).max(80).describe('Acceptable window, e.g. "any weekday this week"'),
 })
