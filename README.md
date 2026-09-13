@@ -1,8 +1,29 @@
 # Errands
 
-**An AI agent, built with the [Strands Agents SDK](https://strandsagents.com), that runs real-world errands end to end and only interrupts you when a decision needs a human: money, keys, or a stranger.**
+**Reclaim your time.** Errands is an AI concierge built with the [Strands Agents SDK](https://strandsagents.com) that handles the small, tedious, real-world tasks that quietly take over a day—and only interrupts you when a human decision actually matters.
 
-Entry for the [Agents for Humans Hackathon](https://agentsforhumans.devpost.com), Everyday Agents track.
+Built for the [Agents for Humans Hackathon](https://agentsforhumans.devpost.com), Everyday Agents track.
+
+![Errands — Reclaim Your Time](docs/errands-thumbnail.jpg)
+
+> “Book dinner for two tonight. If the first place is full, find somewhere comparable.”
+>
+> Errands searches, makes the calls, handles the back-and-forth, and brings you the one decision that belongs to you: whether to approve the deposit.
+
+This project is about more than getting an AI to call a restaurant. It is about giving people back the minutes lost to phone trees, scheduling, cancellations, quotes, and coordination—without asking them to hand over blind trust.
+
+## The idea
+
+Daily life is full of tasks that are individually manageable but collectively expensive. A “quick” call becomes a 20-minute context switch. A car-service appointment requires a shop, a slot, a quote, payment, and sometimes a stranger with your keys. Cancelling unused subscriptions means remembering what you pay for, finding the right number, and staying on hold.
+
+Errands turns a natural-language request into a supervised workflow:
+
+1. **Understand the outcome.** The agent routes your request to the right errand.
+2. **Do the legwork.** It searches, calls businesses, gathers quotes, and coordinates the next step.
+3. **Stop at the boundary.** It asks only when money, property, or a consequential choice is involved.
+4. **Leave an audit trail.** The action, approval, quote, counterparty, and trust event are recorded.
+
+The goal is simple: **less time managing minutia, more time being human.**
 
 ## The problem
 
@@ -11,6 +32,14 @@ Booking a table tonight is a small errand that eats 20 minutes: look up the plac
 ## Who it is for
 
 Busy people who would happily hand the whole errand to an assistant if they could trust it: parents coordinating a night out, professionals who cannot make calls during the day, anyone who has ever said "can you just book something nice for 7?"
+
+## The moment that matters
+
+Automation is easy to demonstrate when nothing important is at stake. The hard part is knowing when the agent should pause.
+
+Errands is designed around that pause. It can make routine calls on its own, but it cannot spend above a cap, cancel a service without your say-so, or hand your keys to a stranger without showing its work and asking you directly. The model can propose the next step; code decides whether that step is allowed.
+
+That is the product promise: **the agent absorbs the busywork while you keep the decisions that carry consequence.**
 
 ## Why it matters
 
@@ -188,6 +217,20 @@ Judges can run this, so everything public runs sandboxed:
 
 ## Run it
 
+### Fastest path for judges
+
+You can run the complete offline experience without Stripe, Vapi, Google, or a phone:
+
+```bash
+npm install
+npm test
+npx tsx scripts/offline-run.ts
+```
+
+The offline runner scripts the calls, payments, bank rows, and tasker marketplace so you can watch all three errands complete end to end. It is the quickest way to see the product idea and the safety boundary in one sitting.
+
+For the full demo, add the optional integrations below. The default mode is sandboxed, and live dialing is restricted by an explicit allowlist.
+
 Requirements: Node.js 22+, an AWS account with Bedrock access to Claude Sonnet 4.6, a Vapi account with an outbound number and the demo lines, a Stripe test key, and optionally a Google Maps key with Places API (New).
 
 ```bash
@@ -233,7 +276,7 @@ npm start -- "Find everything I'm paying for monthly and cancel what I don't use
 npm start -- "Get Blurr an oil change this week and have someone take it there and back"
 ```
 
-**Judges without Stripe or Vapi keys:** run `npx tsx scripts/offline-run.ts`. It scripts every phone call and every payment, so all three errands run end to end with only Bedrock credentials.
+**No Stripe or Vapi keys?** The fastest path above still runs every phone call and payment as a script, so all three errands complete end to end with only Bedrock credentials.
 
 ## Prior work disclosure
 
