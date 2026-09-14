@@ -137,6 +137,8 @@ The same three pieces (a phone call, a gated spend, a vetted human) cover a lot 
 
 **Strands Agents SDK (TypeScript)** runs the agent loop on **Claude Sonnet 4.6 via Amazon Bedrock**. Each errand is a module that contributes its own tools and its own numbered workflow to the system prompt.
 
+![Errands architecture](docs/architecture.png)
+
 Dinner:
 
 - `search_restaurants`: Google Places (New) Text Search, or a fixture list offline. Returns ids, never phone numbers.

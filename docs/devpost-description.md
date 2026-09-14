@@ -1,3 +1,7 @@
+Reclaim your time
+
+Errands is an AI concierge for the small tasks that quietly consume a day. You describe the outcome in one sentence; the agent searches, calls, coordinates, and reports back. It only interrupts you when a human decision matters.
+
 The problem
 
 Booking a table tonight eats 20 minutes: call, hear they are full, find something comparable, call again, hand over a card for a deposit. Cancelling a subscription is worse, since the merchant makes you phone in. Getting the car serviced while you are at work needs a shop, a slot, a payment, and someone you trust with your keys. An app does not help when the business takes only calls.
@@ -8,7 +12,7 @@ Busy people who would happily hand the whole errand to an assistant if they coul
 
 Why it matters
 
-An assistant that can spend your money, cancel your services, or hand your keys to a stranger has to be trustworthy by construction, not by prompt. Errands makes the safe calls itself and surfaces only for decisions a human should own, enforced in code.
+An assistant that can spend your money, cancel your services, or hand your keys to a stranger has to be trustworthy by construction, not by prompt. Errands absorbs the busywork so people get their time back, while the code enforces the boundary around decisions a human should own.
 
 What it does
 
