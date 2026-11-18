@@ -1,16 +1,18 @@
 # Errands
 
-**Reclaim your time.** Errands is an AI concierge built with the [Strands Agents SDK](https://strandsagents.com) that handles the small, tedious, real-world tasks that quietly take over a day—and only interrupts you when a human decision actually matters.
+![Errands portfolio cover: supervised everyday tasks with human approval at consequential decisions](docs/portfolio-hero.png)
+
+**Less coordination, clearer decisions.** Errands is an AI concierge prototype built with the [Strands Agents SDK](https://strandsagents.com). It explores how an assistant could coordinate an everyday errand while asking a person to approve consequential steps. The public demonstrations use controlled phone lines, fixture counterparties and Stripe test-mode payments; they do not establish real restaurant bookings, cancelled subscriptions or completed vehicle-service jobs.
 
 Built for the [Agents for Humans Hackathon](https://agentsforhumans.devpost.com), Everyday Agents track.
 
-![Errands — Reclaim Your Time](docs/errands-thumbnail.jpg)
+![Errands ,  Reclaim Your Time](docs/errands-thumbnail.jpg)
 
 > “Book dinner for two tonight. If the first place is full, find somewhere comparable.”
 >
-> Errands searches, makes the calls, handles the back-and-forth, and brings you the one decision that belongs to you: whether to approve the deposit.
+> Illustrative dinner scenario: the first restaurant is full, a second offers a table, and the assistant asks whether to approve the quoted deposit. In the demo, controlled phone lines play the restaurants and payment is a Stripe test transaction.
 
-This project is about more than getting an AI to call a restaurant. It is about giving people back the minutes lost to phone trees, scheduling, cancellations, quotes, and coordination—without asking them to hand over blind trust.
+This project is about more than getting an AI to call a restaurant. It is about giving people back the minutes lost to phone trees, scheduling, cancellations, quotes, and coordination, without asking them to hand over blind trust.
 
 ## The idea
 
@@ -19,7 +21,7 @@ Daily life is full of tasks that are individually manageable but collectively ex
 Errands turns a natural-language request into a supervised workflow:
 
 1. **Understand the outcome.** The agent routes your request to the right errand.
-2. **Do the legwork.** It searches, calls businesses, gathers quotes, and coordinates the next step.
+2. **Model the legwork.** It searches, calls controlled demo lines, gathers simulated quotes and coordinates the next step. Live dialing is a separate allowlisted path, not a demonstrated booking outcome.
 3. **Stop at the boundary.** It asks only when money, property, or a consequential choice is involved.
 4. **Leave an audit trail.** The action, approval, quote, counterparty, and trust event are recorded.
 
@@ -43,7 +45,7 @@ That is the product promise: **the agent absorbs the busywork while you keep the
 
 ## Why it matters
 
-An assistant that can spend your money, cancel your services, or hand your car keys to a stranger has to be trustworthy by construction, not by prompt. Errands runs in the background, makes the safe calls on its own, and surfaces for exactly the decisions a human should own. Those decisions are enforced in code, not left to the model.
+An assistant that can spend your money, cancel your services, or hand your car keys to a stranger has to be trustworthy by construction, not by prompt. The prototype routes tool actions through a code-enforced gate and surfaces decisions according to policy. The demo demonstrates those checkpoints without proving completion of a real errand. Those decisions are enforced in code, not left to the model.
 
 ## The trust ladder
 
@@ -69,7 +71,7 @@ The notify caps are $25 for restaurant deposits and $45 for service bookings and
 
 ## Three errands
 
-One command line, three errands. The agent routes by intent; there is no errand switch to set.
+One command line, three demonstration scenarios. The agent routes by intent; there is no errand switch to set. In the walkthroughs below, restaurant and merchant dialogue comes from controlled demo phone lines, shops and taskers are fixtures, bank access is fixture or Stripe sandbox, and payments are test-mode. A “confirmation” describes the demo response, not a real-world reservation or cancellation.
 
 ### Dinner
 
@@ -85,7 +87,7 @@ At most three calls in an errand.
 
 **The decision you make:** whether to pay the deposit at the restaurant that actually had a table. The amount has to match what the restaurant quoted on the call, so you are never asked to approve a number the agent made up.
 
-A real run is recorded in `docs/live-run-2026-09-11.txt`.
+A recorded controlled-demo run is in `docs/live-run-2026-09-11.txt`. The historical filename does not make the reservation or test payment a real transaction.
 
 ```
 >>> DECISION NEEDED: Errands wants to spend $15.00 (restaurant deposit)
@@ -105,7 +107,7 @@ A real run is recorded in `docs/live-run-2026-09-11.txt`.
 
 **The decision you make:** which subscriptions die. Cancelling is a $0 spend in a category the policy marks `confirm`, so each merchant needs your approval before its call is placed. Money is not the only thing worth a human decision.
 
-A real run is recorded in `docs/live-run-subscriptions.txt`.
+A recorded controlled-demo run is in `docs/live-run-subscriptions.txt`. Merchant responses are simulated; this is not evidence that a real subscription was cancelled.
 
 ### Blurr
 
@@ -122,11 +124,11 @@ At most three calls in total across `book_service` and `vet_tasker`.
 
 **The decision you make:** paying the shop, and handing your car keys to a named person. The approval prompt shows the evidence: rating, jobs, background check, insurance, and the fact that they passed a phone screen. In the fixture marketplace that is Maria R., 4.9 stars, 212 jobs, $38.00.
 
-A real run is recorded in `docs/live-run-blurr.txt`.
+A recorded controlled-demo run is in `docs/live-run-blurr.txt`. Shops and taskers are fixtures and payments are test-mode; no real vehicle handover is established.
 
-## Other errands it is built for
+## Further illustrative scenarios
 
-The same three pieces (a phone call, a gated spend, a vetted human) cover a lot of ordinary life. These are shapes the gate and tools already support rather than shipped commands.
+The same three pieces (a phone call, a gated spend, a vetted human) cover a lot of ordinary life. These are proposed uses of the same components, not implemented end-to-end workflows or completed real errands.
 
 - **Groceries from a recipe.** Errands turns a recipe into a list, checks what a store has, and phones ahead for anything that needs reserving. You decide the total before the order is paid for.
 - **A party of 20, plus dry cleaning and milk.** Errands phones caterers for a headcount and a quote, phones the cleaner for a same-day slot, and folds the small pickup into the same trip. You decide the catering spend, which is the one number that matters.
@@ -221,15 +223,21 @@ Judges can run this, so everything public runs sandboxed:
 
 ### Fastest path for judges
 
-You can run the complete offline experience without Stripe, Vapi, Google, or a phone:
+Start with the credential-free unit tests. The scripted integration runner substitutes phones, payments, bank data and the marketplace, but still calls Amazon Bedrock and incurs model usage charges:
 
 ```bash
-npm install
+git clone https://github.com/m2ai-portfolio/errands
+cd errands
+npm ci
 npm test
-npx tsx scripts/offline-run.ts
+npm run typecheck
 ```
 
-The offline runner scripts the calls, payments, bank rows, and tasker marketplace so you can watch all three errands complete end to end. It is the quickest way to see the product idea and the safety boundary in one sitting.
+After configuring your own Bedrock access, load credentials from your existing secure environment. On ProBook, use `set -a; source ~/.env.shared; set +a`. Then run `npx tsx scripts/offline-run.ts` only when you intend to use the paid model. Despite its name, this is not a network-free runner.
+
+**First walkthrough:** watch dinner fall back from a full restaurant, inspect the quoted deposit and approval, follow the subscription cancellation, then compare the first driver hire with the repeat hire. The runner scripts human responses for demonstration; this is not your approval for a real transaction. Read `docs/offline-run-2026-09-13.txt` to inspect a saved run without making a model call.
+
+**Check the boundary:** `tests/gate.test.ts`, `tests/gate-intervention.test.ts` and `tests/trust.test.ts` cover policy and approval behavior. Passing these tests does not establish that a real booking, cancellation or payment occurred.
 
 For the full demo, add the optional integrations below. The default mode is sandboxed, and live dialing is restricted by an explicit allowlist.
 
@@ -238,7 +246,7 @@ Requirements: Node.js 22+, an AWS account with Bedrock access to Claude Sonnet 4
 ```bash
 git clone https://github.com/m2ai-portfolio/errands && cd errands
 npm install
-npm test                                   # 216 offline tests in 19 files, no keys needed
+npm test                                   # offline test suite, no keys needed
 ```
 
 | Variable                   | What it does                                                                                                             |
